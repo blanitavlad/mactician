@@ -1,0 +1,120 @@
+# Releasing
+
+The current metadata is Mactician version 1.0.0, build 36. Version and build
+numbers live in `launcher/Info.plist` and the matching emulator-host plist.
+Release notes live under `launcher/Resources/release-notes/` using the short
+version as the filename.
+
+## Release identity
+
+Do not casually change:
+
+- app bundle ID `dev.sergeinaumov.mactician`;
+- game-host bundle ID `dev.sergeinaumov.mactician.game-host`;
+- app name and executable `Mactician`;
+- Application Support and DMG volume name `Mactician`;
+- Sparkle feed `https://sergeinaumov.dev/mactician/updates/appcast.xml`;
+- pinned Sparkle Ed25519 public key in `launcher/Info.plist`;
+- UserDefaults domain and Keychain service `dev.sergeinaumov.mactician`;
+- Android package ID, release-manifest hashes, or the `Android_Codex` device
+  profile identifier.
+
+These are the only current product identifiers. No old feed, local-data path,
+redirect, alias, or compatibility wrapper is part of the release.
+
+## Prepare metadata
+
+1. Update `CFBundleShortVersionString` and monotonically increase
+   `CFBundleVersion` in both plist files.
+2. Add matching Markdown release notes.
+3. Update the `Unreleased` section in `CHANGELOG.md`.
+4. Update the release manifest only when a pinned Android/game input changes;
+   verify size, origin, and hash independently.
+5. Run the full fast validation and review `git diff --check`.
+
+## Build the current ad-hoc artifact
+
+```sh
+PROJECT_DIR="$PWD"
+TFT_GAME_APK_DIR="$PROJECT_DIR/private/tft-pbe-apks" \
+  ./scripts/build-mactician.command
+```
+
+The v1 build signs nested code and the app with an ad-hoc identity and verifies
+the final app and disk image. It is not Apple-notarized, and users must approve
+the first launch through System Settings → Privacy & Security → Open Anyway.
+The same pipeline can use Developer ID, hardened runtime, notarization, and a
+stapled ticket in a future release. No production upload occurs in this step.
+
+Keep the notarization profile, Developer ID private key, Apple credentials, and
+Sparkle private Ed25519 key in Keychain. Never pass secret values as committed
+arguments or defaults.
+
+## Generate the appcast
+
+Exercise generation without upload:
+
+```sh
+: "${MACTICIAN_SPARKLE_ACCOUNT:?Set MACTICIAN_SPARKLE_ACCOUNT in the environment}"
+./scripts/publish-mactician-update.command --prepare-only
+```
+
+This copies the DMG and release notes to versioned names, generates Ed25519
+enclosure signatures and deltas, validates XML, and requires an `edSignature`.
+Prepare-only never uploads files.
+
+## Publish
+
+Production-specific destinations have no secret or machine-specific defaults:
+
+```sh
+: "${MACTICIAN_SPARKLE_ACCOUNT:?Set MACTICIAN_SPARKLE_ACCOUNT in the environment}"
+: "${MACTICIAN_UPDATE_SSH_TARGET:?Set MACTICIAN_UPDATE_SSH_TARGET in the environment}"
+: "${MACTICIAN_UPDATE_SSH_PORT:?Set MACTICIAN_UPDATE_SSH_PORT in the environment}"
+: "${MACTICIAN_UPDATE_REMOTE_ROOT:?Set MACTICIAN_UPDATE_REMOTE_ROOT in the environment}"
+./scripts/publish-mactician-update.command --allow-adhoc
+```
+
+Optional public settings are `MACTICIAN_UPDATE_BASE_URL`,
+`MACTICIAN_UPDATE_PRODUCT_URL`, `MACTICIAN_UPDATE_WORKDIR`, `MACTICIAN_APP`,
+`MACTICIAN_DMG`, and `MACTICIAN_RELEASE_NOTES`.
+
+The publisher verifies the ad-hoc app and DMG, uploads immutable versioned
+artifacts first, uploads the next appcast under a temporary name, then atomically
+moves the appcast into place last. Never overwrite an already published
+versioned DMG with different bytes.
+
+`--allow-adhoc` accepts only a valid ad-hoc-signed app, verifies the DMG, and
+still requires the Sparkle Ed25519 signature.
+
+## Make the repository public
+
+The canonical repository is `https://github.com/tweet9ra/mactician`. Before
+changing its visibility, run `./scripts/verify-repository.command`, the complete
+test suite, and the secret/history scan on the exact commit that will become
+public. Confirm that the repository contains no ignored build inputs, release
+artifacts, credentials, signing material, or local experiment output.
+
+Apply the description, homepage, topics, and social preview recorded in
+`.github/repository-metadata.yml`. Enable Issues and GitHub Private Vulnerability
+Reporting, then verify the public Source, Issues, Security, and Releases pages in
+a signed-out browser. Protect the default branch against force pushes once the
+initial public commit is final.
+
+Create an immutable `v1.0.0` tag and GitHub release only after the corresponding
+DMG and release notes are final. Publish the SHA-256 shown on the product page
+with the release, upload the self-hosted Sparkle files, and publish the appcast
+last. Repository settings, visibility changes, tags, releases, and uploads are
+separate external actions.
+
+## Validation and rollback
+
+Before announcing a release, install the DMG on another supported Mac, verify
+Gatekeeper assessment, install/update flow, Sparkle signature verification,
+runtime-state preservation, first launch, Repair, stop/rollback, and a manual
+update check.
+
+If a release is defective, stop advertising it or publish a higher, fixed
+version. Do not reuse a version/build number or rotate the Ed25519 key as an
+incident shortcut. A compromised private key requires an explicit security
+response.

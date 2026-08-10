@@ -1,0 +1,15 @@
+description: A native, open-source macOS launcher for playing TFT PBE on Apple Silicon.
+homepage: https://sergeinaumov.dev/mactician
+social_preview: branding/generated/mactician-social-preview.png
+topics:
+  - mactician
+  - macos
+  - swift
+  - swiftui
+  - apple-silicon
+  - tft
+  - tft-pbe
+  - android-emulator
+  - vulkan
+  - moltenvk
+  - open-source

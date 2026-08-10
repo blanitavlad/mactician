@@ -1,0 +1,21 @@
+* text=auto eol=lf
+
+*.command text eol=lf
+*.sh text eol=lf
+*.swift text eol=lf
+*.c text eol=lf
+*.cpp text eol=lf
+*.md text eol=lf
+*.json text eol=lf
+*.plist text eol=lf
+*.strings text eol=lf
+*.ini text eol=lf
+
+*.png binary
+*.icns binary
+*.jpg binary
+*.jpeg binary
+*.gif binary
+*.pdf binary
+*.dmg binary
+*.zip binary

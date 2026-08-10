@@ -1,0 +1,9 @@
+{
+  "schema_version": 2,
+  "event_id": "123e4567-e89b-42d3-a456-426614174000",
+  "event": "first_game_session",
+  "occurred_on": "2026-08-09",
+  "duration_bucket": "30_60m",
+  "launcher_version": "1.0.0",
+  "launcher_build": "33"
+}

@@ -1,0 +1,26 @@
+{
+  "schema_version": 2,
+  "event_id": "123e4567-e89b-42d3-a456-426614174001",
+  "event": "game_session_diagnostics",
+  "occurred_at": "2026-08-09T12:34:56Z",
+  "duration_seconds": 2871,
+  "launcher_version": "1.0.0",
+  "launcher_build": "33",
+  "consent_version": 1,
+  "launcher_settings": {
+    "profile_id": "quality",
+    "effects_quality_id": "performance",
+    "display_width": 2560,
+    "display_height": 1440,
+    "display_density": 416,
+    "ui_scale_percent": 100,
+    "guest_memory_mb": 8192,
+    "guest_cpu_cores": 6
+  },
+  "device": {
+    "model_identifier": "Mac16,1",
+    "macos_version": "26.0.0",
+    "physical_memory_mb": 32768,
+    "logical_cpu_count": 10
+  }
+}

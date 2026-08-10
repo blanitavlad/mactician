@@ -1,0 +1,34 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  validate:
+    name: Validate and test
+    runs-on: macos-latest
+    timeout-minutes: 30
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Install validation tools
+        run: |
+          command -v jq >/dev/null || brew install jq
+          command -v rg >/dev/null || brew install ripgrep
+
+      - name: Validate repository policy and metadata
+        run: ./scripts/verify-repository.command
+
+      - name: Run launcher unit tests and production typecheck
+        run: ./scripts/test-mactician.command
+
+      - name: Reject whitespace and generated changes
+        run: |
+          git diff --check
+          test -z "$(git status --short)"
