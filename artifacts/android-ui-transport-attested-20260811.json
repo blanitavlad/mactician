@@ -1,0 +1,187 @@
+{
+  "schemaVersion": 1,
+  "measurementWindowUtc": {
+    "first": "20260811T044555Z",
+    "last": "20260811T050619Z"
+  },
+  "selectionPattern": "^attested-(osft-control|no-async|no-fence|no-batching|no-native-swapchain)-[abcd]$",
+  "invariants": {
+    "display": "2560x1440",
+    "displayDensityDpi": 320,
+    "transport": "virtio-gpu-asg",
+    "hwuiRenderer": "skiavk",
+    "roundsPerRun": 12,
+    "warmupRoundsDiscarded": 3,
+    "avdConfigSha256": "f02bf141a48ec305a7e4930f3389968284efcb1e39b1576b95ff5f8765ebaf79",
+    "avdHardwareSha256": "4495edfdfb5d5ee743db7f62a24726694279a96c0319c2e1c025cfa3efb3b7ea"
+  },
+  "runs": [
+    {
+      "utc": "20260811T044555Z",
+      "label": "attested-osft-control-a",
+      "summarySha256": "9787c5493893d80a0509e1fe38be3822130412134fd6656b5387f6f0d6a55e7a",
+      "graphicsProfile": "osft",
+      "warmMeanElapsedMs": 6738.8514444444445,
+      "warmMedianElapsedMs": 6712.79,
+      "warmMaxP95Ms": 21,
+      "warmMaxP99Ms": 73,
+      "warmTotalJankyFrames": 13
+    },
+    {
+      "utc": "20260811T044850Z",
+      "label": "attested-no-async-a",
+      "summarySha256": "c54cb792bb63fc57d3848f1dc92a6b61be2590b3cd2153239f0980b24a4efabc",
+      "graphicsProfile": "osft-no-async-compose",
+      "warmMeanElapsedMs": 6837.061111111111,
+      "warmMedianElapsedMs": 6845.949,
+      "warmMaxP95Ms": 22,
+      "warmMaxP99Ms": 61,
+      "warmTotalJankyFrames": 10
+    },
+    {
+      "utc": "20260811T045120Z",
+      "label": "attested-no-fence-a",
+      "summarySha256": "942c0ec67c1e2a824d5b33fc6f2f2f4c7a3be0cb1d25974c2a88bf3e0f64cab5",
+      "graphicsProfile": "osft-no-fence-contexts",
+      "warmMeanElapsedMs": 6704.08988888889,
+      "warmMedianElapsedMs": 6685.673,
+      "warmMaxP95Ms": 11,
+      "warmMaxP99Ms": 69,
+      "warmTotalJankyFrames": 9
+    },
+    {
+      "utc": "20260811T045321Z",
+      "label": "attested-no-batching-a",
+      "summarySha256": "021976be07c0a0b093e1aede59491c8225ba46b859a3d85f6498e6ae1c3b36e2",
+      "graphicsProfile": "osft-no-batching",
+      "warmMeanElapsedMs": 6791.833555555555,
+      "warmMedianElapsedMs": 6743.848,
+      "warmMaxP95Ms": 22,
+      "warmMaxP99Ms": 65,
+      "warmTotalJankyFrames": 6
+    },
+    {
+      "utc": "20260811T045522Z",
+      "label": "attested-no-native-swapchain-a",
+      "summarySha256": "a01d8934d310ee9b07c54b4851d81380c5053d6b2779e27f6d1933c2ca427094",
+      "graphicsProfile": "osft-no-native-swapchain",
+      "warmMeanElapsedMs": 6795.131777777778,
+      "warmMedianElapsedMs": 6753.635,
+      "warmMaxP95Ms": 22,
+      "warmMaxP99Ms": 57,
+      "warmTotalJankyFrames": 10
+    },
+    {
+      "utc": "20260811T045741Z",
+      "label": "attested-osft-control-b",
+      "summarySha256": "5534f32d0f7db35fedbf853c83e6d72c5cf9805b05de4ab0b8cad01d443ecbf7",
+      "graphicsProfile": "osft",
+      "warmMeanElapsedMs": 6700.103,
+      "warmMedianElapsedMs": 6686.74,
+      "warmMaxP95Ms": 10,
+      "warmMaxP99Ms": 46,
+      "warmTotalJankyFrames": 7
+    },
+    {
+      "utc": "20260811T045956Z",
+      "label": "attested-no-fence-b",
+      "summarySha256": "c014f3e039a88c2d36114e0a00952a1ce31e044634f297c5bd429f1da72ad1c1",
+      "graphicsProfile": "osft-no-fence-contexts",
+      "warmMeanElapsedMs": 6770.444111111111,
+      "warmMedianElapsedMs": 6761.458,
+      "warmMaxP95Ms": 23,
+      "warmMaxP99Ms": 42,
+      "warmTotalJankyFrames": 7
+    },
+    {
+      "utc": "20260811T050201Z",
+      "label": "attested-osft-control-c",
+      "summarySha256": "36f1f4b9ff296914f607a3c7739785d287c3f15f414cfa8d76fab7946c963fee",
+      "graphicsProfile": "osft",
+      "warmMeanElapsedMs": 6766.178333333333,
+      "warmMedianElapsedMs": 6725.079,
+      "warmMaxP95Ms": 21,
+      "warmMaxP99Ms": 42,
+      "warmTotalJankyFrames": 10
+    },
+    {
+      "utc": "20260811T050410Z",
+      "label": "attested-no-batching-b",
+      "summarySha256": "690c072e087536ab78f385a6a47d624593632abb2bf97b20874561bf62e2d9e1",
+      "graphicsProfile": "osft-no-batching",
+      "warmMeanElapsedMs": 6846.055333333333,
+      "warmMedianElapsedMs": 6836.8,
+      "warmMaxP95Ms": 23,
+      "warmMaxP99Ms": 36,
+      "warmTotalJankyFrames": 8
+    },
+    {
+      "utc": "20260811T050619Z",
+      "label": "attested-osft-control-d",
+      "summarySha256": "c32fab164bbaa6cfcafeddab5130a49dd2cce0161981b1449d3372d50796731d",
+      "graphicsProfile": "osft",
+      "warmMeanElapsedMs": 6707.800555555556,
+      "warmMedianElapsedMs": 6709.307,
+      "warmMaxP95Ms": 10,
+      "warmMaxP99Ms": 65,
+      "warmTotalJankyFrames": 13
+    }
+  ],
+  "aggregates": [
+    {
+      "graphicsProfile": "osft",
+      "validRuns": 4,
+      "warmRounds": 36,
+      "warmMeanElapsedMs": 6728.233333333333,
+      "warmMedianElapsedMs": 6705.956,
+      "warmMaxP95Ms": 21,
+      "warmMaxP99Ms": 73,
+      "warmTotalJankyFrames": 43,
+      "decision": "keep"
+    },
+    {
+      "graphicsProfile": "osft-no-async-compose",
+      "validRuns": 1,
+      "warmRounds": 9,
+      "warmMeanElapsedMs": 6837.061111111111,
+      "warmMedianElapsedMs": 6845.949,
+      "warmMaxP95Ms": 22,
+      "warmMaxP99Ms": 61,
+      "warmTotalJankyFrames": 10,
+      "decision": "reject-slower"
+    },
+    {
+      "graphicsProfile": "osft-no-fence-contexts",
+      "validRuns": 2,
+      "warmRounds": 18,
+      "warmMeanElapsedMs": 6737.267,
+      "warmMedianElapsedMs": 6712.3015,
+      "warmMaxP95Ms": 23,
+      "warmMaxP99Ms": 69,
+      "warmTotalJankyFrames": 16,
+      "decision": "neutral-no-win"
+    },
+    {
+      "graphicsProfile": "osft-no-batching",
+      "validRuns": 2,
+      "warmRounds": 18,
+      "warmMeanElapsedMs": 6818.944444444444,
+      "warmMedianElapsedMs": 6829.6465,
+      "warmMaxP95Ms": 23,
+      "warmMaxP99Ms": 65,
+      "warmTotalJankyFrames": 14,
+      "decision": "reject-latency-regression"
+    },
+    {
+      "graphicsProfile": "osft-no-native-swapchain",
+      "validRuns": 1,
+      "warmRounds": 9,
+      "warmMeanElapsedMs": 6795.131777777778,
+      "warmMedianElapsedMs": 6753.635,
+      "warmMaxP95Ms": 22,
+      "warmMaxP99Ms": 57,
+      "warmTotalJankyFrames": 10,
+      "decision": "reject-no-win"
+    }
+  ]
+}

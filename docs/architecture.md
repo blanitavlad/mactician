@@ -177,6 +177,15 @@ flowchart LR
 Android HWUI/WebView uses Skia OpenGL to avoid a verified WebView Vulkan
 deadlock; this does not disable Vulkan below TFT's ANGLE renderer.
 
+Fixed-stage and cold-boot measurements identify the guest command-serialization,
+MMIO/kick, readback, and synchronization boundary as the dominant graphics
+bottleneck: the host decoder is usually waiting for work rather than saturating
+the transport bandwidth. A shorter guest GLES encoder route was prototyped, but
+the current guest/host gfxstream capability contract exposes only ES 3.0 while
+TFT actively requires ES 3.1 compute, image, barrier, and texture-buffer
+semantics. The evidence, rejected variants, source patches, and implementation
+alternatives are recorded in [Native GLES transport experiment](native-gles-transport-experiment.md).
+
 ## Fail-closed checks
 
 The launcher refuses to continue on manifest schema errors, unsafe archive

@@ -40,6 +40,7 @@ readonly MEMORY_MB="${TFT_MEMORY_MB:-6144}"
 readonly GAME_LANGUAGE="${TFT_GAME_LANGUAGE:-en-US}"
 readonly AUDIO_ENABLED="${TFT_AUDIO_ENABLED:-1}"
 readonly RENDERER="${TFT_RENDERER:-angle}"
+readonly HOST_GPU="${TFT_HOST_GPU:-host}"
 readonly GUEST_GL_DRIVER="${TFT_GUEST_GL_DRIVER:-angle}"
 readonly GUEST_SUBMIT_THREAD="${TFT_GUEST_SUBMIT_THREAD:-default}"
 readonly PACKAGED_EMULATOR_APP="$PROJECT_DIR/Mactician Game Host.app"
@@ -244,6 +245,14 @@ if [[ "$GUEST_SUBMIT_THREAD" != "default" && "$GUEST_GL_DRIVER" != "angle" ]]; t
     print "The guest Vulkan submit thread is supported only with TFT_GUEST_GL_DRIVER=angle."
     exit 2
 fi
+if [[ "$HOST_GPU" != "host" && "$HOST_GPU" != "swangle" ]]; then
+    print "TFT_HOST_GPU must be either host or swangle."
+    exit 2
+fi
+if [[ "$HOST_GPU" == "swangle" && "$GUEST_GL_DRIVER" != "native" ]]; then
+    print "The isolated swangle control is supported only with TFT_GUEST_GL_DRIVER=native."
+    exit 2
+fi
 
 ANGLE_FEATURES="$ANGLE_BASE_FEATURES"
 if [[ -n "$ANGLE_EXTRA_FEATURES" ]]; then
@@ -387,6 +396,35 @@ case "$GRAPHICS_PROFILE" in
             -append-userspace-opt androidboot.opengles.version=196610
         )
         ;;
+    osft-no-queue-submit-with-commands)
+        # Diagnostic reproduction only. Real TFT cold boots abort before ADB
+        # while decoding VK_STRUCTURE_TYPE_APPLICATION_INFO; this profile is
+        # deliberately absent from the performance-candidate manifest.
+        EXTRA_EMULATOR_FLAGS=(
+            -feature 'GLESDynamicVersion,Vulkan,GuestAngle,-GLPipeChecksum,VulkanBatchedDescriptorSetUpdate,AsyncComposeSupport,VirtioGpuFenceContexts,-VulkanQueueSubmitWithCommands'
+            -append-userspace-opt androidboot.opengles.version=196610
+        )
+        ;;
+    osft-no-native-swapchain)
+        EXTRA_EMULATOR_FLAGS=(
+            -feature 'GLESDynamicVersion,Vulkan,GuestAngle,-GLPipeChecksum,VulkanBatchedDescriptorSetUpdate,AsyncComposeSupport,VirtioGpuFenceContexts,-VulkanNativeSwapchain'
+            -append-userspace-opt androidboot.opengles.version=196610
+        )
+        ;;
+    osft-no-fence-contexts)
+        EXTRA_EMULATOR_FLAGS=(
+            -feature 'GLESDynamicVersion,Vulkan,GuestAngle,-GLPipeChecksum,VulkanBatchedDescriptorSetUpdate,AsyncComposeSupport,-VirtioGpuFenceContexts'
+            -append-userspace-opt androidboot.opengles.version=196610
+        )
+        ;;
+    osft-no-virtual-queue)
+        # Diagnostic reproduction only. Emulator 37.1.11 reports that this
+        # guest feature override is ignored, so it cannot form a valid A/B.
+        EXTRA_EMULATOR_FLAGS=(
+            -feature 'GLESDynamicVersion,Vulkan,GuestAngle,-GLPipeChecksum,VulkanBatchedDescriptorSetUpdate,AsyncComposeSupport,VirtioGpuFenceContexts,-VulkanVirtualQueue'
+            -append-userspace-opt androidboot.opengles.version=196610
+        )
+        ;;
     osft-native-swapchain)
         EXTRA_EMULATOR_FLAGS=(
             -feature 'GLESDynamicVersion,Vulkan,GuestAngle,-GLPipeChecksum,VulkanBatchedDescriptorSetUpdate,AsyncComposeSupport,VirtioGpuFenceContexts,VulkanNativeSwapchain'
@@ -406,7 +444,7 @@ case "$GRAPHICS_PROFILE" in
         )
         ;;
     *)
-        print "TFT_GRAPHICS_PROFILE must be one of stable, osft, osft-no-batching, osft-no-async-compose, osft-native-swapchain, osft-low-latency, or turbo."
+        print "TFT_GRAPHICS_PROFILE must be one of stable, osft, osft-no-batching, osft-no-async-compose, osft-no-queue-submit-with-commands, osft-no-native-swapchain, osft-no-fence-contexts, osft-no-virtual-queue, osft-native-swapchain, osft-low-latency, or turbo."
         exit 2
         ;;
 esac
@@ -503,8 +541,9 @@ EMULATOR_ARGS=(
     "@$AVD_NAME"
     -id "TFT-$AVD_NAME"
     -port "$EMULATOR_PORT"
-    -gpu host
+    -gpu "$HOST_GPU"
     "${EXTRA_EMULATOR_FLAGS[@]}"
+    -append-userspace-opt "androidboot.mactician.graphics_profile=$GRAPHICS_PROFILE"
     -skin "$DISPLAY_SIZE"
     -vsync-rate 60
     -dns-server 1.1.1.1,8.8.8.8
@@ -532,9 +571,21 @@ if [[ -n "$EMULATOR_APP" ]]; then
         --env "ANDROID_AVD_HOME=$AVD_HOME"
     )
     for environment_name in \
+            ANGLE_FEATURE_OVERRIDES_ENABLED \
+            ANGLE_FEATURE_OVERRIDES_DISABLED \
+            MVK_CONFIG_PREFILL_METAL_COMMAND_BUFFERS \
+            MVK_CONFIG_SHOULD_MAXIMIZE_CONCURRENT_COMPILATION \
+            MVK_CONFIG_ACTIVITY_PERFORMANCE_LOGGING_STYLE \
+            MVK_CONFIG_LOG_LEVEL \
+            MVK_CONFIG_PERFORMANCE_LOGGING_FRAME_COUNT \
+            MVK_CONFIG_PERFORMANCE_TRACKING \
             MVK_CONFIG_SYNCHRONOUS_QUEUE_SUBMITS \
             MVK_CONFIG_MAX_ACTIVE_METAL_COMMAND_BUFFERS_PER_QUEUE \
-            MVK_CONFIG_FAST_MATH_ENABLED; do
+            MVK_CONFIG_SUPPORT_LARGE_QUERY_POOLS \
+            MVK_CONFIG_USE_MTLHEAP \
+            MVK_CONFIG_FAST_MATH_ENABLED \
+            MVK_CONFIG_USE_METAL_ARGUMENT_BUFFERS \
+            MVK_CONFIG_VK_SEMAPHORE_SUPPORT_STYLE; do
         if [[ -n "${(P)environment_name:-}" ]]; then
             APP_ENV_ARGS+=(--env "$environment_name=${(P)environment_name}")
         fi
@@ -1372,7 +1423,11 @@ case "$RENDERER" in
         ;;
     angle-opengl)
         if [[ "$GUEST_GL_DRIVER" == "native" ]]; then
-            print "TFT is running: Unreal OpenGL ES -> gfxstream GLES encoder -> host ANGLE -> Metal, ${DISPLAY_SIZE}@${DISPLAY_DENSITY}dpi@60, audio $AUDIO_STATUS."
+            if [[ "$HOST_GPU" == "swangle" ]]; then
+                print "TFT is running: Unreal OpenGL ES -> gfxstream GLES encoder -> host ANGLE -> Vulkan -> SwiftShader CPU, ${DISPLAY_SIZE}@${DISPLAY_DENSITY}dpi@60, audio $AUDIO_STATUS."
+            else
+                print "TFT is running: Unreal OpenGL ES -> gfxstream GLES encoder -> host ANGLE -> Metal, ${DISPLAY_SIZE}@${DISPLAY_DENSITY}dpi@60, audio $AUDIO_STATUS."
+            fi
         else
             print "TFT is running: Unreal OpenGL ES -> guest ANGLE -> Vulkan -> Metal, ${DISPLAY_SIZE}@${DISPLAY_DENSITY}dpi@60, audio $AUDIO_STATUS."
         fi
@@ -1390,6 +1445,7 @@ if [[ "$INPUT_BRIDGE_ENABLED" == "1" ]]; then
 fi
 print "Graphics profile: $GRAPHICS_PROFILE."
 print "TFT renderer: $RENDERER."
+print "Host GPU backend: $HOST_GPU."
 print "Android HWUI renderer: $HWUI_RENDERER; the Unreal renderer is unchanged."
 print "Guest GL driver: $GUEST_GL_DRIVER."
 print "Guest Vulkan submit thread: $GUEST_SUBMIT_THREAD."

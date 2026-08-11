@@ -157,6 +157,7 @@ private func recognizeText(in image: CGImage) throws -> [OCRLine] {
         "Match Accepted",
         "Reconnect",
         "Choose One",
+        "Time Bonus",
         "Description",
     ]
 
@@ -419,6 +420,42 @@ private func classifierSelfTest() -> Bool {
         confidence: 1,
         boundingBox: CGRect(x: 0.45, y: 0.64, width: 0.1, height: 0.04)
     )
+    let battle = Classification(
+        state: .battle,
+        stage: "1-2",
+        reason: "self_test",
+        evidence: []
+    )
+    let timeBonus = OCRLine(
+        text: "TIME BONUS +12",
+        normalized: "TIME BONUS +12",
+        compact: "TIMEBONUS12",
+        confidence: 1,
+        boundingBox: CGRect(x: 0.4, y: 0.7, width: 0.2, height: 0.04)
+    )
+    let planning = OCRLine(
+        text: "FIGHT",
+        normalized: "FIGHT",
+        compact: "FIGHT",
+        confidence: 1,
+        boundingBox: CGRect(x: 0.8, y: 0.1, width: 0.1, height: 0.04)
+    )
+    let postCombatPhase = battlePhase(
+        for: battle,
+        lines: [timeBonus],
+        combatCyanPixels: 0,
+        combatCyanLongestRun: 0,
+        imageWidth: referenceWidth,
+        imageHeight: referenceHeight
+    )
+    let planningPhase = battlePhase(
+        for: battle,
+        lines: [timeBonus, planning],
+        combatCyanPixels: 0,
+        combatCyanLongestRun: 0,
+        imageWidth: referenceWidth,
+        imageHeight: referenceHeight
+    )
     return shopCost(red: 37, green: 51, blue: 65) == 1
         && shopCost(red: 19, green: 53, blue: 44) == 2
         && shopCost(red: 28, green: 32, blue: 72) == 3
@@ -426,6 +463,8 @@ private func classifierSelfTest() -> Bool {
         && shopCost(red: 105, green: 91, blue: 35) == 5
         && boardOccupancy(in: [noisyOccupancy])?.units == 3
         && boardOccupancy(in: [noisyOccupancy])?.capacity == 4
+        && postCombatPhase == "post_combat"
+        && planningPhase == "planning"
 }
 
 private func emitDebugLines(_ lines: [OCRLine]) {
@@ -787,6 +826,14 @@ private func battlePhase(
             || $0.compact == "FIGHT" || $0.compact == "REROLL"
     }) {
         return "planning"
+    }
+    // Tocker's multi-orb reward gate keeps the battle HUD and stage visible,
+    // but removes both the combat timer and planning controls. TIME BONUS is
+    // the stable semantic marker on that completed-combat screen. Exposing a
+    // separate phase lets the harness open each reward chooser without ever
+    // guessing from a generic battle frame.
+    if EvidenceMatcher(lines: lines).has("TIME BONUS") {
+        return "post_combat"
     }
     return nil
 }

@@ -30,7 +30,7 @@ Built for two tacticians. Shared with everyone.
 
 ## Preview
 
-![Mactician launcher running TFT PBE on macOS](docs/images/mactician-running-tft-pbe.webp)
+![Mactician running TFT PBE on macOS](docs/images/mactician-running-tft-pbe.webp)
 
 Mactician keeps launcher controls and the running TFT PBE window side by side.
 The native SwiftUI interface is localized in English and Russian; game language
@@ -202,7 +202,10 @@ Only reproducible or explicitly qualified results are treated as conclusions:
 See [Benchmarks](docs/benchmarks.md),
 [Reproducibility](docs/reproducibility.md), and the
 [Research log](docs/research-log.md) for methodology, rejected experiments, and
-limitations.
+limitations. The focused
+[native GLES and graphics-transport experiment](docs/native-gles-transport-experiment.md)
+documents the shortened-path prototype, its ES 3.2 blockers, and the measured
+current-path alternatives.
 
 ## Privacy and security
 
@@ -243,6 +246,7 @@ sharing. Report vulnerabilities through the private process in
 - [Benchmarks](docs/benchmarks.md)
 - [Engineering case study](https://sergeinaumov.dev/writing/how-i-built-mactician)
 - [Research log](docs/research-log.md)
+- [Native GLES and graphics-transport experiment](docs/native-gles-transport-experiment.md)
 - [Reproducibility](docs/reproducibility.md)
 - [Launch profiles](docs/launch-profiles.md)
 - [Telemetry and privacy](docs/telemetry.md)

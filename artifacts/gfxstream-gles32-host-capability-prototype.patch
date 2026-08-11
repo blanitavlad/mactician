@@ -1,0 +1,248 @@
+Subject: [PROTOTYPE] propagate GLES 3.2 through the gfxstream host capability path
+
+Applies to gfxstream emu-main-dev revision a9184fd (2026-08-04).
+
+This patch is build-validated capability plumbing, not a production GLES 3.2
+renderer. It makes the host probe an underlying 3.2 EGL context, loads the
+generated 3.2 dispatch group, creates translator 3.2 contexts, and advertises
+the 3.2 RenderControl feature. It still requires a conformant hardware backend,
+a source-matched guest encoder/EGL stack, complete command validation and
+translation, and end-to-end testing.
+
+diff --git a/host/gl/gles_version_detector.cpp b/host/gl/gles_version_detector.cpp
+index 34415eb..ff2c3d1 100644
+--- a/host/gl/gles_version_detector.cpp
++++ b/host/gl/gles_version_detector.cpp
+@@ -45,6 +45,10 @@ static const EGLint gles31Attribs[] =
+    { EGL_CONTEXT_MAJOR_VERSION_KHR, 3,
+      EGL_CONTEXT_MINOR_VERSION_KHR, 1, EGL_NONE };
+ 
++static const EGLint gles32Attribs[] =
++   { EGL_CONTEXT_MAJOR_VERSION_KHR, 3,
++     EGL_CONTEXT_MINOR_VERSION_KHR, 2, EGL_NONE };
++
+ static const EGLint gles30Attribs[] =
+    { EGL_CONTEXT_MAJOR_VERSION_KHR, 3,
+      EGL_CONTEXT_MINOR_VERSION_KHR, 0, EGL_NONE };
+@@ -65,6 +69,9 @@ static bool sTryContextCreation(EGLDisplay dpy, GLESDispatchMaxVersion ver) {
+     case GLES_DISPATCH_MAX_VERSION_3_1:
+         contextAttribs = gles31Attribs;
+         break;
++    case GLES_DISPATCH_MAX_VERSION_3_2:
++        contextAttribs = gles32Attribs;
++        break;
+     default:
+         break;
+     }
+@@ -98,9 +105,8 @@ static bool sTryContextCreation(EGLDisplay dpy, GLESDispatchMaxVersion ver) {
+ 
+ GLESDispatchMaxVersion calcMaxVersionFromDispatch(const gfxstream::host::FeatureSet& features,
+                                                   EGLDisplay dpy) {
+-    // TODO: 3.1 is the highest
+     GLESDispatchMaxVersion maxVersion =
+-       GLES_DISPATCH_MAX_VERSION_3_1;
++       GLES_DISPATCH_MAX_VERSION_3_2;
+ 
+     if (get_gfxstream_renderer() == SELECTED_RENDERER_HOST
+         || get_gfxstream_renderer() == SELECTED_RENDERER_SWIFTSHADER_INDIRECT
+@@ -111,10 +117,13 @@ GLESDispatchMaxVersion calcMaxVersionFromDispatch(const gfxstream::host::Feature
+                 (GLESDispatchMaxVersion)s_egl.eglGetMaxGLESVersion(dpy);
+         }
+     } else {
+-        if (!sTryContextCreation(dpy, GLES_DISPATCH_MAX_VERSION_3_1)) {
+-            maxVersion = GLES_DISPATCH_MAX_VERSION_3_0;
+-            if (!sTryContextCreation(dpy, GLES_DISPATCH_MAX_VERSION_3_0)) {
+-                maxVersion = GLES_DISPATCH_MAX_VERSION_2;
++        if (!sTryContextCreation(dpy, GLES_DISPATCH_MAX_VERSION_3_2)) {
++            maxVersion = GLES_DISPATCH_MAX_VERSION_3_1;
++            if (!sTryContextCreation(dpy, GLES_DISPATCH_MAX_VERSION_3_1)) {
++                maxVersion = GLES_DISPATCH_MAX_VERSION_3_0;
++                if (!sTryContextCreation(dpy, GLES_DISPATCH_MAX_VERSION_3_0)) {
++                    maxVersion = GLES_DISPATCH_MAX_VERSION_2;
++                }
+             }
+         }
+     }
+diff --git a/host/gl/glestranslator/common/gl_dispatch.cpp b/host/gl/glestranslator/common/gl_dispatch.cpp
+index f2b9f42..345ff72 100644
+--- a/host/gl/glestranslator/common/gl_dispatch.cpp
++++ b/host/gl/glestranslator/common/gl_dispatch.cpp
+@@ -229,7 +229,7 @@ void GLDispatch::dispatchFuncs(GLESVersion version, GlLibrary* glLib, EGLGetProc
+     LIST_GLES2_EXTENSIONS_FUNCTIONS(LOAD_GLEXT_FUNC)
+     LIST_GLES2_EXTENSIONS_FUNCTIONS(LOAD_GLEXT_FUNC_DEBUG_LOG_WRAPPER)
+ 
+-    /* Load OpenGL ES 3.x functions through 3.1. Not all are supported;
++    /* Load OpenGL ES 3.x functions through 3.2. Not all are supported;
+      * leave it up to EGL to determine support level. */
+ 
+     if (version >= GLES_3_0) {
+@@ -245,6 +245,11 @@ void GLDispatch::dispatchFuncs(GLESVersion version, GlLibrary* glLib, EGLGetProc
+         LIST_GLES31_ONLY_FUNCTIONS(LOAD_GLEXT_FUNC_DEBUG_LOG_WRAPPER)
+     }
+ 
++    if (version >= GLES_3_2) {
++        LIST_GLES32_ONLY_FUNCTIONS(LOAD_GLEXT_FUNC)
++        LIST_GLES32_ONLY_FUNCTIONS(LOAD_GLEXT_FUNC_DEBUG_LOG_WRAPPER)
++    }
++
+     const char* kAngleName = "ANGLE";
+     const char* glString = reinterpret_cast<const char*>(glGetString(GL_RENDERER));
+     if (glString && 0 == strncmp(glString, kAngleName, strlen(kAngleName))) {
+diff --git a/host/gl/glestranslator/common/include/common/gl_utils.h b/host/gl/glestranslator/common/include/common/gl_utils.h
+index 606b701..c97cdd9 100644
+--- a/host/gl/glestranslator/common/include/common/gl_utils.h
++++ b/host/gl/glestranslator/common/include/common/gl_utils.h
+@@ -37,6 +37,7 @@ typedef enum {
+     GLES_2_0 = 2,
+     GLES_3_0 = 3,
+     GLES_3_1 = 4,
++    GLES_3_2 = 5,
+     MAX_GLES_VERSION //Must be last
+ } GLESVersion;
+ 
+diff --git a/host/gl/glestranslator/egl/egl_display.cpp b/host/gl/glestranslator/egl/egl_display.cpp
+index 7804a00..e2b78ea 100644
+--- a/host/gl/glestranslator/egl/egl_display.cpp
++++ b/host/gl/glestranslator/egl/egl_display.cpp
+@@ -33,6 +33,7 @@ EglDisplay::EglDisplay(EGLNativeDisplayType dpy,
+     m_manager[GLES_2_0] = new ObjectNameManager(&m_globalNameSpace);
+     m_manager[GLES_3_0] = m_manager[GLES_2_0];
+     m_manager[GLES_3_1] = m_manager[GLES_2_0];
++    m_manager[GLES_3_2] = m_manager[GLES_2_0];
+ };
+ 
+ EglDisplay::~EglDisplay() {
+diff --git a/host/gl/glestranslator/egl/egl_imp.cpp b/host/gl/glestranslator/egl/egl_imp.cpp
+index 5d59055..625a952 100644
+--- a/host/gl/glestranslator/egl/egl_imp.cpp
++++ b/host/gl/glestranslator/egl/egl_imp.cpp
+@@ -388,6 +388,17 @@ EGLAPI EGLBoolean EGLAPIENTRY eglInitialize(EGLDisplay display, EGLint *major, E
+         }
+         initGLESx(GLES_3_1);
+     }
++    if(!g_eglInfo->getIface(GLES_3_2)) {
++        func  = loadIfaces(LIB_GLES_V2_NAME, error, sizeof(error));
++        if (func) {
++            renderableType |= EGL_OPENGL_ES2_BIT | EGL_OPENGL_ES3_BIT;
++            g_eglInfo->setIface(func(&s_eglIface),GLES_3_2);
++        } else {
++           fprintf(stderr, "%s: Could not find ifaces for GLES 3.2 [%s]\n",
++                   __FUNCTION__, error);
++        }
++        initGLESx(GLES_3_2);
++    }
+     dpy->initialize(renderableType);
+     return EGL_TRUE;
+ }
+@@ -983,6 +994,9 @@ static EGLContext eglCreateOrLoadContext(EGLDisplay display, EGLConfig config,
+          case 1:
+              glesVersion = GLES_3_1;
+              break;
++         case 2:
++             glesVersion = GLES_3_2;
++             break;
+          default:
+              RETURN_ERROR(EGL_NO_CONTEXT, EGL_BAD_ATTRIBUTE);
+              break;
+@@ -1759,9 +1773,11 @@ EGLAPI void EGLAPIENTRY eglSetMaxGLESVersion(EGLint version) {
+         glesVersion = GLES_3_0;
+         break;
+     case 2:
+-    case 3: // TODO: GLES 3.2 support?
+         glesVersion = GLES_3_1;
+         break;
++    case 3:
++        glesVersion = GLES_3_2;
++        break;
+     }
+ 
+     if (g_eglInfo->getIface(GLES_1_1)) {
+diff --git a/host/gl/glestranslator/egl/egl_os_api_egl.cpp b/host/gl/glestranslator/egl/egl_os_api_egl.cpp
+index 9a9038d..ff26c21 100644
+--- a/host/gl/glestranslator/egl/egl_os_api_egl.cpp
++++ b/host/gl/glestranslator/egl/egl_os_api_egl.cpp
+@@ -425,6 +425,10 @@ EglOsEglDisplay::EglOsEglDisplay(bool nullEgl) {
+        { EGL_CONTEXT_MAJOR_VERSION_KHR, 3,
+          EGL_CONTEXT_MINOR_VERSION_KHR, 1, EGL_NONE };
+ 
++    static const EGLint gles32Attribs[] =
++       { EGL_CONTEXT_MAJOR_VERSION_KHR, 3,
++         EGL_CONTEXT_MINOR_VERSION_KHR, 2, EGL_NONE };
++
+     static const EGLint gles30Attribs[] =
+        { EGL_CONTEXT_MAJOR_VERSION_KHR, 3,
+          EGL_CONTEXT_MINOR_VERSION_KHR, 0, EGL_NONE };
+@@ -439,15 +443,21 @@ EglOsEglDisplay::EglOsEglDisplay(bool nullEgl) {
+                 config, pbufAttribs);
+         if (surface != EGL_NO_SURFACE) {
+             EGLContext ctx = mDispatcher.eglCreateContext(mDisplay,
+-                    config, EGL_NO_CONTEXT, gles31Attribs);
++                    config, EGL_NO_CONTEXT, gles32Attribs);
+ 
+             if (ctx != EGL_NO_CONTEXT) {
+-                mGlesVersion = GlesVersion::ES31;
++                mGlesVersion = GlesVersion::ES32;
+             } else {
+                 ctx = mDispatcher.eglCreateContext(mDisplay, config,
+-                        EGL_NO_CONTEXT, gles30Attribs);
++                        EGL_NO_CONTEXT, gles31Attribs);
+                 if (ctx != EGL_NO_CONTEXT) {
+-                    mGlesVersion = GlesVersion::ES30;
++                    mGlesVersion = GlesVersion::ES31;
++                } else {
++                    ctx = mDispatcher.eglCreateContext(mDisplay, config,
++                            EGL_NO_CONTEXT, gles30Attribs);
++                    if (ctx != EGL_NO_CONTEXT) {
++                        mGlesVersion = GlesVersion::ES30;
++                    }
+                 }
+             }
+             mDispatcher.eglDestroySurface(mDisplay, surface);
+@@ -466,8 +476,6 @@ EglOsEglDisplay::~EglOsEglDisplay() {
+ }
+ 
+ EglOS::GlesVersion EglOsEglDisplay::getMaxGlesVersion() {
+-    // Maximum GLES3.1
+-    // GLES3.2 will also need some more autogen + enums if anyone is interested.
+     return mGlesVersion;
+ }
+ 
+diff --git a/host/render_control.cpp b/host/render_control.cpp
+index f6470f0..17a0baf 100644
+--- a/host/render_control.cpp
++++ b/host/render_control.cpp
+@@ -57,6 +57,7 @@ using gl::EmulatedEglFenceSync;
+ using gl::GLES_DISPATCH_MAX_VERSION_2;
+ using gl::GLES_DISPATCH_MAX_VERSION_3_0;
+ using gl::GLES_DISPATCH_MAX_VERSION_3_1;
++using gl::GLES_DISPATCH_MAX_VERSION_3_2;
+ using gl::GLESApi;
+ using gl::GLESApi_CM;
+ using gl::GLESDispatchMaxVersion;
+@@ -195,6 +196,7 @@ static const char* kDirectMemStr = "ANDROID_EMU_direct_mem";
+ static const char* kGLESDynamicVersion_2 = "ANDROID_EMU_gles_max_version_2";
+ static const char* kGLESDynamicVersion_3_0 = "ANDROID_EMU_gles_max_version_3_0";
+ static const char* kGLESDynamicVersion_3_1 = "ANDROID_EMU_gles_max_version_3_1";
++static const char* kGLESDynamicVersion_3_2 = "ANDROID_EMU_gles_max_version_3_2";
+ 
+ // HWComposer Host Composition
+ static const char* kHostCompositionV1 = "ANDROID_EMU_host_composition_v1";
+@@ -367,6 +369,8 @@ const char* maxVersionToFeatureString(GLESDispatchMaxVersion version) {
+             return kGLESDynamicVersion_3_0;
+         case GLES_DISPATCH_MAX_VERSION_3_1:
+             return kGLESDynamicVersion_3_1;
++        case GLES_DISPATCH_MAX_VERSION_3_2:
++            return kGLESDynamicVersion_3_2;
+         default:
+             return kGLESDynamicVersion_2;
+     }
+@@ -682,6 +686,9 @@ static EGLint rcGetGLString(EGLenum name, void* buffer, EGLint bufferSize) {
+             case GLES_DISPATCH_MAX_VERSION_3_1:
+                 glStr = replaceESVersionString(glStr, "3.1");
+                 break;
++            case GLES_DISPATCH_MAX_VERSION_3_2:
++                glStr = replaceESVersionString(glStr, "3.2");
++                break;
+             default:
+                 break;
+             }

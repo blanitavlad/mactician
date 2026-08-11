@@ -290,6 +290,36 @@
       }
     },
     {
+      "id": "profile-performance-max-heavy",
+      "launcher": "run-tft-performance-max.command",
+      "profile": "artifacts/tft-pbe-18.1-5212127-angle-opengl/Android_Codex.DeviceProfiles.performance-max.ini",
+      "profileStage": "1-8",
+      "variant": "profile_performance_max_heavy",
+      "display": "2560x1440",
+      "density": 416,
+      "stages": ["1-5", "1-8"],
+      "env": {
+        "TFT_GUEST_SUBMIT_THREAD": "on-demand",
+        "TFT_ANGLE_DISABLED_FEATURES": "preferSubmitAtFBOBoundary",
+        "TFT_ASG_WRITE_STEP_SIZE": "16384"
+      }
+    },
+    {
+      "id": "profile-performance-max-asg-step-32768",
+      "launcher": "run-tft-performance-max.command",
+      "profile": "artifacts/tft-pbe-18.1-5212127-angle-opengl/Android_Codex.DeviceProfiles.performance-max.ini",
+      "profileStage": "1-8",
+      "variant": "profile_performance_max_asg_step_32768",
+      "display": "2560x1440",
+      "density": 416,
+      "stages": ["1-5", "1-8"],
+      "env": {
+        "TFT_GUEST_SUBMIT_THREAD": "on-demand",
+        "TFT_ANGLE_DISABLED_FEATURES": "preferSubmitAtFBOBoundary",
+        "TFT_ASG_WRITE_STEP_SIZE": "32768"
+      }
+    },
+    {
       "id": "performance-max-audio-off-screen",
       "launcher": "run-tft-performance-max.command",
       "profile": "artifacts/tft-pbe-18.1-5212127-angle-opengl/Android_Codex.DeviceProfiles.performance-max.ini",
@@ -335,6 +365,351 @@
       }
     },
     {
+      "id": "performance-max-asg-ring-65536",
+      "launcher": "run-tft-performance-max.command",
+      "profile": "artifacts/tft-pbe-18.1-5212127-angle-opengl/Android_Codex.DeviceProfiles.performance-max.ini",
+      "variant": "performance_max_asg_ring_65536",
+      "display": "2560x1440",
+      "density": 416,
+      "stages": [
+        "1-5",
+        "1-8"
+      ],
+      "env": {
+        "TFT_GUEST_SUBMIT_THREAD": "on-demand",
+        "TFT_ANGLE_DISABLED_FEATURES": "preferSubmitAtFBOBoundary",
+        "TFT_ASG_WRITE_STEP_SIZE": "16384",
+        "TFT_ASG_DATA_RING_SIZE": "65536"
+      }
+    },
+    {
+      "id": "performance-max-virtio-gpu-next",
+      "launcher": "run-tft-performance-max.command",
+      "profile": "artifacts/tft-pbe-18.1-5212127-angle-opengl/Android_Codex.DeviceProfiles.performance-max.ini",
+      "variant": "performance_max_virtio_gpu_next",
+      "display": "2560x1440",
+      "density": 416,
+      "stages": [
+        "1-5",
+        "1-8"
+      ],
+      "env": {
+        "TFT_GUEST_SUBMIT_THREAD": "on-demand",
+        "TFT_ANGLE_DISABLED_FEATURES": "preferSubmitAtFBOBoundary",
+        "TFT_ASG_WRITE_STEP_SIZE": "16384",
+        "TFT_VIRTIO_GPU_NEXT": "1"
+      }
+    },
+    {
+      "id": "performance-max-argument-buffers-on-screen",
+      "launcher": "run-tft-performance-max.command",
+      "profile": "artifacts/tft-pbe-18.1-5212127-angle-opengl/Android_Codex.DeviceProfiles.performance-max.ini",
+      "variant": "performance_max_argument_buffers_on_screen",
+      "display": "2560x1440",
+      "density": 416,
+      "stages": [
+        "1-5"
+      ],
+      "env": {
+        "TFT_GUEST_SUBMIT_THREAD": "on-demand",
+        "TFT_ANGLE_DISABLED_FEATURES": "preferSubmitAtFBOBoundary",
+        "TFT_ASG_WRITE_STEP_SIZE": "16384",
+        "MVK_CONFIG_USE_METAL_ARGUMENT_BUFFERS": "1"
+      }
+    },
+    {
+      "id": "performance-max-prefill-end-screen",
+      "launcher": "run-tft-performance-max.command",
+      "profile": "artifacts/tft-pbe-18.1-5212127-angle-opengl/Android_Codex.DeviceProfiles.performance-max.ini",
+      "variant": "performance_max_prefill_end_screen",
+      "display": "2560x1440",
+      "density": 416,
+      "stages": [
+        "1-5"
+      ],
+      "env": {
+        "TFT_GUEST_SUBMIT_THREAD": "on-demand",
+        "TFT_ANGLE_DISABLED_FEATURES": "preferSubmitAtFBOBoundary",
+        "TFT_ASG_WRITE_STEP_SIZE": "16384",
+        "MVK_CONFIG_PREFILL_METAL_COMMAND_BUFFERS": "1"
+      }
+    },
+    {
+      "id": "performance-max-metal-events-screen",
+      "launcher": "run-tft-performance-max.command",
+      "profile": "artifacts/tft-pbe-18.1-5212127-angle-opengl/Android_Codex.DeviceProfiles.performance-max.ini",
+      "variant": "performance_max_metal_events_screen",
+      "display": "2560x1440",
+      "density": 416,
+      "stages": [
+        "1-5"
+      ],
+      "env": {
+        "TFT_GUEST_SUBMIT_THREAD": "on-demand",
+        "TFT_ANGLE_DISABLED_FEATURES": "preferSubmitAtFBOBoundary",
+        "TFT_ASG_WRITE_STEP_SIZE": "16384",
+        "MVK_CONFIG_VK_SEMAPHORE_SUPPORT_STYLE": "1"
+      }
+    },
+    {
+      "id": "performance-max-concurrent-compile-screen",
+      "launcher": "run-tft-performance-max.command",
+      "profile": "artifacts/tft-pbe-18.1-5212127-angle-opengl/Android_Codex.DeviceProfiles.performance-max.ini",
+      "variant": "performance_max_concurrent_compile_screen",
+      "display": "2560x1440",
+      "density": 416,
+      "stages": [
+        "1-5"
+      ],
+      "env": {
+        "TFT_GUEST_SUBMIT_THREAD": "on-demand",
+        "TFT_ANGLE_DISABLED_FEATURES": "preferSubmitAtFBOBoundary",
+        "TFT_ASG_WRITE_STEP_SIZE": "16384",
+        "MVK_CONFIG_SHOULD_MAXIMIZE_CONCURRENT_COMPILATION": "1"
+      }
+    },
+    {
+      "id": "performance-max-concurrent-compile",
+      "launcher": "run-tft-performance-max.command",
+      "profile": "artifacts/tft-pbe-18.1-5212127-angle-opengl/Android_Codex.DeviceProfiles.performance-max.ini",
+      "variant": "performance_max_concurrent_compile",
+      "display": "2560x1440",
+      "density": 416,
+      "stages": [
+        "1-5",
+        "1-8"
+      ],
+      "env": {
+        "TFT_GUEST_SUBMIT_THREAD": "on-demand",
+        "TFT_ANGLE_DISABLED_FEATURES": "preferSubmitAtFBOBoundary",
+        "TFT_ASG_WRITE_STEP_SIZE": "16384",
+        "MVK_CONFIG_SHOULD_MAXIMIZE_CONCURRENT_COMPILATION": "1"
+      }
+    },
+    {
+      "id": "performance-max-submit-inline-screen",
+      "launcher": "run-tft-performance-max.command",
+      "profile": "artifacts/tft-pbe-18.1-5212127-angle-opengl/Android_Codex.DeviceProfiles.performance-max.ini",
+      "variant": "performance_max_submit_inline_screen",
+      "display": "2560x1440",
+      "density": 416,
+      "stages": [
+        "1-5"
+      ],
+      "env": {
+        "TFT_GUEST_SUBMIT_THREAD": "0",
+        "TFT_ANGLE_DISABLED_FEATURES": "preferSubmitAtFBOBoundary",
+        "TFT_ASG_WRITE_STEP_SIZE": "16384"
+      }
+    },
+    {
+      "id": "performance-max-submit-inline",
+      "launcher": "run-tft-performance-max.command",
+      "profile": "artifacts/tft-pbe-18.1-5212127-angle-opengl/Android_Codex.DeviceProfiles.performance-max.ini",
+      "variant": "performance_max_submit_inline",
+      "display": "2560x1440",
+      "density": 416,
+      "stages": [
+        "1-5",
+        "1-8"
+      ],
+      "env": {
+        "TFT_GUEST_SUBMIT_THREAD": "0",
+        "TFT_ANGLE_DISABLED_FEATURES": "preferSubmitAtFBOBoundary",
+        "TFT_ASG_WRITE_STEP_SIZE": "16384"
+      }
+    },
+    {
+      "id": "profile-performance-max-submit-inline",
+      "launcher": "run-tft-performance-max.command",
+      "profile": "artifacts/tft-pbe-18.1-5212127-angle-opengl/Android_Codex.DeviceProfiles.performance-max.ini",
+      "profileStage": "1-8",
+      "variant": "profile_performance_max_submit_inline",
+      "display": "2560x1440",
+      "density": 416,
+      "stages": [
+        "1-5",
+        "1-8"
+      ],
+      "env": {
+        "TFT_GUEST_SUBMIT_THREAD": "0",
+        "TFT_ANGLE_DISABLED_FEATURES": "preferSubmitAtFBOBoundary",
+        "TFT_ASG_WRITE_STEP_SIZE": "16384"
+      }
+    },
+    {
+      "id": "performance-max-submit-thread-screen",
+      "launcher": "run-tft-performance-max.command",
+      "profile": "artifacts/tft-pbe-18.1-5212127-angle-opengl/Android_Codex.DeviceProfiles.performance-max.ini",
+      "variant": "performance_max_submit_thread_screen",
+      "display": "2560x1440",
+      "density": 416,
+      "stages": [
+        "1-5"
+      ],
+      "env": {
+        "TFT_GUEST_SUBMIT_THREAD": "1",
+        "TFT_ANGLE_DISABLED_FEATURES": "preferSubmitAtFBOBoundary",
+        "TFT_ASG_WRITE_STEP_SIZE": "16384"
+      }
+    },
+    {
+      "id": "performance-max-no-async-compose-screen",
+      "launcher": "run-tft-performance-max.command",
+      "profile": "artifacts/tft-pbe-18.1-5212127-angle-opengl/Android_Codex.DeviceProfiles.performance-max.ini",
+      "variant": "performance_max_no_async_compose_screen",
+      "display": "2560x1440",
+      "density": 416,
+      "stages": [
+        "1-5"
+      ],
+      "env": {
+        "TFT_GUEST_SUBMIT_THREAD": "on-demand",
+        "TFT_ANGLE_DISABLED_FEATURES": "preferSubmitAtFBOBoundary",
+        "TFT_ASG_WRITE_STEP_SIZE": "16384",
+        "TFT_GRAPHICS_PROFILE": "osft-no-async-compose"
+      }
+    },
+    {
+      "id": "performance-max-no-native-swapchain-screen",
+      "launcher": "run-tft-performance-max.command",
+      "profile": "artifacts/tft-pbe-18.1-5212127-angle-opengl/Android_Codex.DeviceProfiles.performance-max.ini",
+      "variant": "performance_max_no_native_swapchain_screen",
+      "display": "2560x1440",
+      "density": 416,
+      "stages": [
+        "1-5"
+      ],
+      "env": {
+        "TFT_GUEST_SUBMIT_THREAD": "on-demand",
+        "TFT_ANGLE_DISABLED_FEATURES": "preferSubmitAtFBOBoundary",
+        "TFT_ASG_WRITE_STEP_SIZE": "16384",
+        "TFT_GRAPHICS_PROFILE": "osft-no-native-swapchain"
+      }
+    },
+    {
+      "id": "performance-max-flush-400-screen",
+      "launcher": "run-tft-performance-max.command",
+      "profile": "artifacts/tft-pbe-18.1-5212127-angle-opengl/Android_Codex.DeviceProfiles.performance-max.ini",
+      "variant": "performance_max_flush_400_screen",
+      "display": "2560x1440",
+      "density": 416,
+      "stages": [
+        "1-5"
+      ],
+      "env": {
+        "TFT_GUEST_SUBMIT_THREAD": "on-demand",
+        "TFT_ANGLE_DISABLED_FEATURES": "preferSubmitAtFBOBoundary",
+        "TFT_ASG_WRITE_STEP_SIZE": "16384",
+        "TFT_GL_DRAW_FLUSH_INTERVAL": "400"
+      }
+    },
+    {
+      "id": "performance-max-flush-1200-screen",
+      "launcher": "run-tft-performance-max.command",
+      "profile": "artifacts/tft-pbe-18.1-5212127-angle-opengl/Android_Codex.DeviceProfiles.performance-max.ini",
+      "variant": "performance_max_flush_1200_screen",
+      "display": "2560x1440",
+      "density": 416,
+      "stages": [
+        "1-5"
+      ],
+      "env": {
+        "TFT_GUEST_SUBMIT_THREAD": "on-demand",
+        "TFT_ANGLE_DISABLED_FEATURES": "preferSubmitAtFBOBoundary",
+        "TFT_ASG_WRITE_STEP_SIZE": "16384",
+        "TFT_GL_DRAW_FLUSH_INTERVAL": "1200"
+      }
+    },
+    {
+      "id": "performance-max-control-screen",
+      "launcher": "run-tft-performance-max.command",
+      "profile": "artifacts/tft-pbe-18.1-5212127-angle-opengl/Android_Codex.DeviceProfiles.performance-max.ini",
+      "variant": "performance_max_control_screen",
+      "display": "2560x1440",
+      "density": 416,
+      "stages": [
+        "1-5"
+      ],
+      "env": {
+        "TFT_GUEST_SUBMIT_THREAD": "on-demand",
+        "TFT_ANGLE_DISABLED_FEATURES": "preferSubmitAtFBOBoundary",
+        "TFT_ASG_WRITE_STEP_SIZE": "16384"
+      }
+    },
+    {
+      "id": "performance-max-shared-query-pool-screen",
+      "launcher": "run-tft-performance-max.command",
+      "profile": "artifacts/tft-pbe-18.1-5212127-angle-opengl/Android_Codex.DeviceProfiles.performance-max.ini",
+      "variant": "performance_max_shared_query_pool_screen",
+      "display": "2560x1440",
+      "density": 416,
+      "stages": [
+        "1-5"
+      ],
+      "env": {
+        "TFT_GUEST_SUBMIT_THREAD": "on-demand",
+        "TFT_ANGLE_DISABLED_FEATURES": "preferSubmitAtFBOBoundary",
+        "TFT_ASG_WRITE_STEP_SIZE": "16384",
+        "MVK_CONFIG_SUPPORT_LARGE_QUERY_POOLS": "0"
+      }
+    },
+    {
+      "id": "performance-max-shared-query-pool",
+      "launcher": "run-tft-performance-max.command",
+      "profile": "artifacts/tft-pbe-18.1-5212127-angle-opengl/Android_Codex.DeviceProfiles.performance-max.ini",
+      "variant": "performance_max_shared_query_pool",
+      "display": "2560x1440",
+      "density": 416,
+      "stages": [
+        "1-5",
+        "1-8"
+      ],
+      "env": {
+        "TFT_GUEST_SUBMIT_THREAD": "on-demand",
+        "TFT_ANGLE_DISABLED_FEATURES": "preferSubmitAtFBOBoundary",
+        "TFT_ASG_WRITE_STEP_SIZE": "16384",
+        "MVK_CONFIG_SUPPORT_LARGE_QUERY_POOLS": "0"
+      }
+    },
+    {
+      "id": "performance-max-no-mtlheap-screen",
+      "launcher": "run-tft-performance-max.command",
+      "profile": "artifacts/tft-pbe-18.1-5212127-angle-opengl/Android_Codex.DeviceProfiles.performance-max.ini",
+      "variant": "performance_max_no_mtlheap_screen",
+      "display": "2560x1440",
+      "density": 416,
+      "stages": [
+        "1-5"
+      ],
+      "env": {
+        "TFT_GUEST_SUBMIT_THREAD": "on-demand",
+        "TFT_ANGLE_DISABLED_FEATURES": "preferSubmitAtFBOBoundary",
+        "TFT_ASG_WRITE_STEP_SIZE": "16384",
+        "MVK_CONFIG_USE_MTLHEAP": "0"
+      }
+    },
+    {
+      "id": "performance-max-mvk-diagnostics-screen",
+      "launcher": "run-tft-performance-max.command",
+      "profile": "artifacts/tft-pbe-18.1-5212127-angle-opengl/Android_Codex.DeviceProfiles.performance-max.ini",
+      "variant": "performance_max_mvk_diagnostics_screen",
+      "display": "2560x1440",
+      "density": 416,
+      "stages": [
+        "1-5"
+      ],
+      "env": {
+        "TFT_GUEST_SUBMIT_THREAD": "on-demand",
+        "TFT_ANGLE_DISABLED_FEATURES": "preferSubmitAtFBOBoundary",
+        "TFT_ASG_WRITE_STEP_SIZE": "16384",
+        "MVK_CONFIG_ACTIVITY_PERFORMANCE_LOGGING_STYLE": "0",
+        "MVK_CONFIG_LOG_LEVEL": "3",
+        "MVK_CONFIG_PERFORMANCE_LOGGING_FRAME_COUNT": "120",
+        "MVK_CONFIG_PERFORMANCE_TRACKING": "1"
+      }
+    },
+    {
       "id": "performance-animation-uro-67",
       "launcher": "run-tft-fast-quality.command",
       "profile": "artifacts/tft-pbe-18.1-5212127-angle-opengl/Android_Codex.DeviceProfiles.performance-animation-uro-67.ini",
@@ -361,6 +736,21 @@
         "TFT_ANGLE_DISABLED_FEATURES": "preferSubmitAtFBOBoundary",
         "TFT_ASG_WRITE_STEP_SIZE": "16384",
         "TFT_GRAPHICS_PROFILE": "osft-no-batching"
+      }
+    },
+    {
+      "id": "performance-max-no-fence-contexts-screen",
+      "launcher": "run-tft-performance-max.command",
+      "profile": "artifacts/tft-pbe-18.1-5212127-angle-opengl/Android_Codex.DeviceProfiles.performance-max.ini",
+      "variant": "performance_max_no_fence_contexts_screen",
+      "display": "2560x1440",
+      "density": 416,
+      "stages": ["1-5"],
+      "env": {
+        "TFT_GUEST_SUBMIT_THREAD": "on-demand",
+        "TFT_ANGLE_DISABLED_FEATURES": "preferSubmitAtFBOBoundary",
+        "TFT_ASG_WRITE_STEP_SIZE": "16384",
+        "TFT_GRAPHICS_PROFILE": "osft-no-fence-contexts"
       }
     },
     {

@@ -4,6 +4,7 @@ set -euo pipefail
 unsetopt BG_NICE
 
 readonly PROJECT_DIR="${0:A:h:h}"
+readonly CAMPAIGN_SCRIPT="${0:A}"
 source "$PROJECT_DIR/scripts/android-environment.sh"
 readonly TRIAL_RUNNER="$PROJECT_DIR/scripts/run-autonomous-trial-benchmark.command"
 readonly LEADERBOARD_BUILDER="$PROJECT_DIR/scripts/build-performance-leaderboard.command"
@@ -83,7 +84,7 @@ if (( SELF_TEST == 0 && DRY_RUN == 0 )) \
     (( RESUME == 1 )) && caffeinated_args+=(--resume)
     exec /usr/bin/caffeinate -dimsu \
         /usr/bin/env TFT_CAMPAIGN_CAFFEINATED=1 \
-        "$0" "${caffeinated_args[@]}"
+        "$CAMPAIGN_SCRIPT" "${caffeinated_args[@]}"
 fi
 
 for required_file in "$TRIAL_RUNNER" "$LEADERBOARD_BUILDER" "$CLASSIFIER_BUILD" "$CLASSIFIER_TEST" \
@@ -163,13 +164,13 @@ QUEUE=(
     upstream-asg
     mvk128
     mvk256
-    official-runtime-36
 )
 typeset -a COMBINATION_QUEUE
 COMBINATION_QUEUE=(submit-no-fbo submit-upstream-asg submit-mvk128)
 
 typeset CURRENT_CHILD_PID=""
 typeset CURRENT_CANDIDATE=""
+integer RUN_SEQUENCE=0
 typeset ORIGINAL_POWER_MODE="$(
     pmset -g custom 2>/dev/null \
         | awk '/^AC Power:/{ ac=1; next } ac && $1 == "powermode" { print $2; exit }'
@@ -262,16 +263,35 @@ trap campaign_cleanup EXIT
 trap 'exit 130' HUP INT TERM
 
 offline_maintenance() {
+    local syntax_script queued_candidate queued_count
     record_event offline_maintenance_start
-    zsh -o NO_BG_NICE -n \
-        "$TRIAL_RUNNER" \
-        "$PROJECT_DIR/scripts/capture-frame-pacing.command" \
-        "$PROJECT_DIR/scripts/login-tft-from-keychain.command" \
-        "$PROJECT_DIR/scripts/run-asg-experiment.command" \
-        "$0" \
-        "$LEADERBOARD_BUILDER"
-    "$JQ" -e '.schemaVersion == 1 and ([.candidates[].id] | length == (unique | length))' \
+    for syntax_script in \
+            "$TRIAL_RUNNER" \
+            "$PROJECT_DIR/scripts/capture-frame-pacing.command" \
+            "$PROJECT_DIR/scripts/login-tft-from-keychain.command" \
+            "$PROJECT_DIR/scripts/run-asg-experiment.command" \
+            "$CAMPAIGN_SCRIPT" \
+            "$LEADERBOARD_BUILDER"; do
+        zsh -o NO_BG_NICE -n "$syntax_script"
+    done
+    "$JQ" -e '
+        .schemaVersion == 1
+        and (.candidates | type == "array" and length > 0)
+        and ([.candidates[].id] | length == (unique | length))
+        and ([.candidates[].variant] | length == (unique | length))
+    ' \
         "$CAMPAIGN_MANIFEST" >/dev/null
+    for queued_candidate in "${QUEUE[@]}" "${COMBINATION_QUEUE[@]}"; do
+        queued_count="$(
+            "$JQ" --arg id "$queued_candidate" \
+                '[.candidates[] | select(.id == $id)] | length' \
+                "$CAMPAIGN_MANIFEST"
+        )"
+        if [[ "$queued_count" != "1" ]]; then
+            print "Campaign queue candidate must occur exactly once: $queued_candidate"
+            return 2
+        fi
+    done
     "$CLASSIFIER_BUILD" > "$CAMPAIGN_DIR/classifier-build.log"
     "$CLASSIFIER_TEST" > "$CAMPAIGN_DIR/classifier-test.log"
     "$LEADERBOARD_BUILDER" "$CAMPAIGN_DIR" >/dev/null 2>&1 || true
@@ -371,8 +391,9 @@ run_candidate() {
         fi
         wait_for_thermal_headroom || return $?
         (( attempt += 1 ))
+        (( RUN_SEQUENCE += 1 ))
         candidate_started="$(date +%s)"
-        run_tag="$(date -u '+%Y%m%dT%H%M%SZ')"
+        run_tag="$(date -u '+%Y%m%dT%H%M%SZ')-${RUN_SEQUENCE}"
         candidate_deadline=$(( candidate_started + CANDIDATE_WATCHDOG_SECONDS ))
         log_file="$RUN_LOG_ROOT/${candidate}-${run_tag}-attempt-${attempt}.log"
         write_checkpoint running trial "attempt=$attempt"

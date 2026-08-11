@@ -558,6 +558,7 @@ swipe_game_reference() {
 
 typeset -A ACTION_COUNT ACTION_LAST
 typeset LAST_STATE=""
+typeset LAST_SEMANTIC_STATE=""
 typeset CURRENT_STATE="unknown"
 typeset CURRENT_STAGE=""
 typeset CURRENT_PHASE=""
@@ -577,6 +578,7 @@ integer BENCH_UNITS_AVAILABLE=0
 integer LAST_BOARD_SWIPES=0
 integer LAST_ITEM_SWIPES=0
 integer ITEMS_EQUIPPED=0
+integer BOARD_PLACEMENTS_DONE=0
 integer TRIAL_ATTEMPTS_STARTED=0
 typeset LOGIN_HELPER_ATTEMPTS=0
 typeset LOGIN_HELPER_SUBMITTED=0
@@ -586,6 +588,7 @@ typeset unknown_top_activity=""
 typeset helper_status=0
 typeset retry_action_key=""
 typeset recovery_stage=""
+typeset gameplay_action_key=""
 typeset measurement_summary=""
 typeset measurement_summary_json=""
 typeset -A CAPTURED_STAGE
@@ -618,6 +621,16 @@ take_state_screenshot() {
     CURRENT_SHOP_COSTS_JSON="$("$JQ" -c '.shop_costs // []' "$RUN_DIR/current.json")"
     CURRENT_BOARD_UNITS="$("$JQ" -r '.board_units // -1' "$RUN_DIR/current.json")"
     CURRENT_BOARD_CAPACITY="$("$JQ" -r '.board_capacity // -1' "$RUN_DIR/current.json")"
+
+    # Retry bounds apply to one continuous semantic screen episode. Preserve
+    # them across transient unknown animation frames, but reset a state's
+    # budget after another recognized state has genuinely intervened (for
+    # example, a second reconnect dialog after returning through the lobby).
+    if [[ "$CURRENT_STATE" != unknown && "$CURRENT_STATE" != "$LAST_SEMANTIC_STATE" ]]; then
+        ACTION_COUNT[$CURRENT_STATE]=0
+        ACTION_LAST[$CURRENT_STATE]=0
+        LAST_SEMANTIC_STATE="$CURRENT_STATE"
+    fi
     "$JQ" -c \
         --arg utc "$(date -u '+%Y-%m-%dT%H:%M:%SZ')" \
         --argjson iteration "$iteration" \
@@ -649,6 +662,11 @@ tap_recognized_state() {
     elif [[ "$state" == "login_service_error" ]]; then
         limit=5
         retry_seconds=15
+    elif [[ "$state" == trial-choice-* || "$state" == post-combat-reward-* ]]; then
+        # A single completed Trial round can expose four or more sequential
+        # loot choices. Keep retries responsive while retaining a hard bound.
+        limit=10
+        retry_seconds=2
     fi
     if (( count > 0 && SECONDS - last < retry_seconds )); then
         return 0
@@ -771,7 +789,7 @@ collect_trial_rewards_fast() {
     # 3.5 seconds of fixed sleeps on every single stage.
     reward_points=("1050 300" "860 610" "1280 700")
     for reward_point in "${reward_points[@]}"; do
-        input_script+="input tap $(game_scale_x "${reward_point% *}") $(game_scale_y "${reward_point#* }"); sleep 0.35; "
+        input_script+="input tap $(game_scale_x "${reward_point% *}") $(game_scale_y "${reward_point#* }"); sleep 0.65; "
     done
     "$ADB" -s "$SERIAL" shell "$input_script" >/dev/null
 }
@@ -793,14 +811,21 @@ spend_gold_on_xp() {
 
 buy_best_shop_unit_and_close() {
     local stage="$1"
-    local best_slot=0 best_cost=0 minimum_cost=3 slot cost input_script=""
+    local best_slot=0 best_cost=0 minimum_cost=2 slot cost input_script=""
     typeset -a shop_costs shop_xs
+    # The first two shops are frequently all tier-1. Buying one card from each
+    # removes that RNG dependency while later shops retain the tier-2 quality
+    # floor, avoiding a low-tier swap if OCR undercounts an already full board.
+    (( $(stage_number "$stage") <= 102 )) && minimum_cost=1
     if [[ "$CURRENT_BOARD_UNITS" == <-> && "$CURRENT_BOARD_CAPACITY" == <-> ]] \
-            && (( CURRENT_BOARD_UNITS < CURRENT_BOARD_CAPACITY )); then
-        # The expensive-unit policy is primary. A single tier-2 fallback is
-        # allowed only when the semantic board counter proves an empty slot;
-        # the zero-placement smoke showed 2/3 dies immediately after 1-5.
-        minimum_cost=2
+            && (( CURRENT_BOARD_UNITS >= CURRENT_BOARD_CAPACITY )); then
+        # Prefer tier-3+ upgrades only when the semantic counter proves the
+        # board is full. If OCR temporarily omits the counter, retain the
+        # bounded fallback: treating missing evidence as "full" repeatedly left
+        # 1/4 and 2/3 boards empty and made late-stage runs non-reproducible.
+        # Buying one best available card is bounded, uses no rerolls, and makes
+        # the 1-8 semantic gate less dependent on early shop RNG.
+        minimum_cost=3
     fi
     shop_costs=("${(@f)$(print -r -- "$CURRENT_SHOP_COSTS_JSON" | "$JQ" -r '.[]')}")
     shop_xs=(1055 1275 1490 1710)
@@ -844,21 +869,39 @@ buy_best_shop_unit_and_close() {
 }
 
 reinforce_board_once_if_needed() {
+    local target_x
+    typeset -a board_target_xs
+    board_target_xs=(1500 1320 1140 960 780)
     LAST_BOARD_SWIPES=0
-    if [[ "$CURRENT_BOARD_UNITS" != <-> || "$CURRENT_BOARD_CAPACITY" != <-> ]] \
-            || (( CURRENT_BOARD_UNITS >= CURRENT_BOARD_CAPACITY \
-                || BENCH_UNITS_AVAILABLE <= 0 )); then
+    if (( BENCH_UNITS_AVAILABLE <= 0 \
+            || BOARD_PLACEMENTS_DONE >= ${#board_target_xs} )); then
         return 0
     fi
-    # Exactly one first-bench -> free-hex action, and only with visual proof of
-    # an empty board slot. This replaces seven blind drags on every stage.
-    # Starter units commonly occupy the old left-side target (720,790), which
-    # made a visually confirmed 2/3 or 3/4 vacancy remain unfilled. The far
-    # right back hex is empty in the default Trial layouts.
-    swipe_game_reference 350 1000 1560 790 220
+    if [[ "$CURRENT_BOARD_UNITS" == <-> && "$CURRENT_BOARD_CAPACITY" == <-> ]] \
+            && (( CURRENT_BOARD_UNITS >= CURRENT_BOARD_CAPACITY )); then
+        return 0
+    fi
+    # Exactly one first-bench -> free-hex action replaces seven blind drags on
+    # every stage. A fresh 1440p screenshot locates the first bench center near
+    # (415,1010), not the former (350,1000) point at the empty left margin.
+    # Cycle across distinct back-row hexes so repeated reinforcements grow the
+    # board instead of swapping through the same occupied destination.
+    # Fill from the unoccupied far-right side toward the starter at the left;
+    # the opposite order repeatedly swapped the starter instead of increasing
+    # the field count.
+    target_x="${board_target_xs[$(( BOARD_PLACEMENTS_DONE + 1 ))]}"
+    swipe_game_reference 415 1010 "$target_x" 720 220
     (( BENCH_UNITS_AVAILABLE -= 1 ))
+    (( BOARD_PLACEMENTS_DONE += 1 ))
     LAST_BOARD_SWIPES=1
-    print "Trial action: filled one confirmed board vacancy ($CURRENT_BOARD_UNITS/$CURRENT_BOARD_CAPACITY)."
+    if [[ "$CURRENT_BOARD_UNITS" == <-> && "$CURRENT_BOARD_CAPACITY" == <-> ]]; then
+        print "Trial action: filled one confirmed board vacancy ($CURRENT_BOARD_UNITS/$CURRENT_BOARD_CAPACITY)."
+    else
+        # Vision occasionally drops the small occupancy counter. One bounded
+        # bench-to-back-hex swipe is still safe: an empty hex is filled, while
+        # an unexpectedly occupied hex performs a reversible unit swap.
+        print "Trial action: placed one bench unit while the board counter was temporarily unavailable."
+    fi
 }
 
 equip_early_items_once() {
@@ -868,16 +911,15 @@ equip_early_items_once() {
     local item_source item_target input_script=""
     integer item_index=1
     # These are 2048x1152 reference coordinates, just like every other board
-    # gesture. The old source points were already pre-scaled for 1440p while
-    # the targets were scaled again, so the logged four-swipe batch commonly
-    # missed both the item tray and every champion. The starter occupies the
-    # left back hex; a confirmed reinforcement is placed on the far-right back
-    # hex. Offer all four early drops to the reliable starter because one can
-    # be a non-equippable selection/anvil; TFT itself rejects any component
-    # after the champion's three-item maximum. This stays within one ADB shell
-    # and adds no host-side sleep.
-    item_sources=("44 112" "44 188" "44 264" "44 340")
-    item_targets=("480 665" "480 665" "480 665" "480 665")
+    # gesture. A fresh 2560x1440 Trial screenshot places the item-tray centers
+    # at x=60 and y=138+84n in this reference space, and the reliable left-back
+    # champion near (700,720). The former (480,665) target landed on empty
+    # board space above and left of that champion. Offer all four possible
+    # drops to the same unit because one can be a non-equippable selection or
+    # anvil; TFT itself rejects any component after the three-item maximum.
+    # This stays within one ADB shell and adds no host-side sleep.
+    item_sources=("60 138" "60 222" "60 306" "60 390")
+    item_targets=("700 720" "700 720" "700 720" "700 720")
     for item_source in "${item_sources[@]}"; do
         item_target="${item_targets[$(( (item_index - 1) % ${#item_targets} + 1 ))]}"
         input_script+="input swipe $(game_scale_x "${item_source% *}") $(game_scale_y "${item_source#* }") $(game_scale_x "${item_target% *}") $(game_scale_y "${item_target#* }") 220; "
@@ -907,6 +949,12 @@ prepare_stage_fast() {
     local stage="$1"
     local mode="${2:-normal}"
     integer started=$SECONDS
+
+    # The semantic stage label appears roughly one second before surviving
+    # units and the bench are restored after combat. Acting immediately could
+    # drag from an empty transition frame and then start the next fight with an
+    # empty board. Give stages after 1-1 one bounded compositor/gameplay tick.
+    (( $(stage_number "$stage") > 101 )) && sleep 1
 
     # If combat ended before the overlapped shop pass completed, finish the
     # same single-card policy before XP. No rerolls and no five-card sweep.
@@ -1270,6 +1318,7 @@ while (( SECONDS - navigation_started < NAVIGATION_TIMEOUT )); do
                 LAST_BOARD_SWIPES=0
                 LAST_ITEM_SWIPES=0
                 ITEMS_EQUIPPED=0
+                BOARD_PLACEMENTS_DONE=0
                 RETRY_CANDIDATE_STAGE=""
                 RETRY_CANDIDATE_SINCE=0
                 if (( TRIAL_ATTEMPTS_STARTED == 1 )); then
@@ -1286,9 +1335,10 @@ while (( SECONDS - navigation_started < NAVIGATION_TIMEOUT )); do
                 ACTION_LAST[match_found]=0
                 ACTION_COUNT[trial_results_reset]=0
                 ACTION_LAST[trial_results_reset]=0
-                typeset gameplay_action_key
+                gameplay_action_key=""
                 for gameplay_action_key in "${(@k)ACTION_COUNT}"; do
                     if [[ "$gameplay_action_key" == trial-choice-* \
+                            || "$gameplay_action_key" == post-combat-reward-* \
                             || "$gameplay_action_key" == fight-* ]]; then
                         unset "ACTION_COUNT[$gameplay_action_key]"
                         unset "ACTION_LAST[$gameplay_action_key]"
@@ -1469,6 +1519,15 @@ while (( SECONDS - navigation_started < NAVIGATION_TIMEOUT )); do
                     exit 3
                 fi
                 PREPARED_STAGE[$CURRENT_STAGE]=1
+            elif [[ "$CURRENT_PHASE" == post_combat && -n "$CURRENT_STAGE" ]]; then
+                # Completed Trial rounds can leave several question-mark orbs
+                # on the arena. The gold lower-right action opens exactly one
+                # CHOOSE ONE overlay at a time; the trial_choice branch closes
+                # it, then this gated action repeats until the stage advances.
+                if ! tap_recognized_state "post-combat-reward-$CURRENT_STAGE" \
+                        OPEN_REWARD_CHOOSER 1965 1016 game; then
+                    exit 3
+                fi
             elif [[ "$CURRENT_FIGHT_VISIBLE" == "1" ]]; then
                 if ! tap_recognized_state "fight-$CURRENT_STAGE" FIGHT 1965 920 game; then
                     exit 3
