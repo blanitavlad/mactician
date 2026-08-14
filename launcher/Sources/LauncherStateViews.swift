@@ -209,9 +209,16 @@ private struct LauncherReadyView: View {
                     description: LauncherL10n.text("ready.description")
                 )
                 Spacer()
-                Button(LauncherL10n.text("action.play")) { model.play() }
-                    .buttonStyle(LauncherPrimaryButtonStyle())
-                    .keyboardShortcut(.defaultAction)
+                if model.isGameUpdateAvailable {
+                    Button(LauncherL10n.text("action.update_game")) { model.updateGame() }
+                        .buttonStyle(LauncherPrimaryButtonStyle())
+                        .keyboardShortcut(.defaultAction)
+                } else {
+                    Button(LauncherL10n.text("action.play")) { model.play() }
+                        .buttonStyle(LauncherPrimaryButtonStyle())
+                        .keyboardShortcut(.defaultAction)
+                        .disabled(model.isCheckingGameUpdate)
+                }
             }
 
             HStack(spacing: LauncherTheme.Spacing.medium) {
@@ -222,7 +229,27 @@ private struct LauncherReadyView: View {
 
             hotkeyRow
         }
-        .onAppear { model.refreshHotkeyStatus() }
+        .onAppear {
+            model.refreshHotkeyStatus()
+            model.refreshGameUpdateAvailability()
+        }
+        .alert(
+            LauncherL10n.text("game_update.result.title"),
+            isPresented: Binding(
+                get: { model.gameUpdateResultMessage != nil },
+                set: { isPresented in
+                    if !isPresented {
+                        model.dismissGameUpdateResult()
+                    }
+                }
+            )
+        ) {
+            Button(LauncherL10n.text("action.ok"), role: .cancel) {
+                model.dismissGameUpdateResult()
+            }
+        } message: {
+            Text(model.gameUpdateResultMessage ?? "")
+        }
     }
 
     private var languageField: some View {

@@ -1,6 +1,6 @@
 # Releasing
 
-The current metadata is Mactician version 1.0.0, build 36. Version and build
+The current metadata is Mactician version 1.0.4, build 40. Version and build
 numbers live in `launcher/Info.plist` and the matching emulator-host plist.
 Release notes live under `launcher/Resources/release-notes/` using the short
 version as the filename.
@@ -86,6 +86,27 @@ versioned DMG with different bytes.
 
 `--allow-adhoc` accepts only a valid ad-hoc-signed app, verifies the DMG, and
 still requires the Sparkle Ed25519 signature.
+
+## Publish a TFT PBE game update
+
+Game releases use a separate signed manifest and do not require a new Mactician
+build. Put the complete official split APK set in one directory and run:
+
+```sh
+: "${MACTICIAN_GAME_APK_DIR:?Set the split APK directory}"
+: "${MACTICIAN_GAME_VERSION:?Set the Android version name}"
+: "${MACTICIAN_GAME_VERSION_CODE:?Set the Android version code}"
+./scripts/publish-game-update.command --prepare-only
+```
+
+Review the generated payload and APK hashes. To publish, set
+`MACTICIAN_UPDATE_SSH_TARGET` and `MACTICIAN_UPDATE_REMOTE_ROOT`, then rerun
+without `--prepare-only`. `MACTICIAN_GAME_SIGNING_ACCOUNT` defaults to the
+dedicated `mactician-game-updates` Keychain account.
+
+The publisher uploads immutable APK files before atomically replacing the
+signed `game/manifest.json`. Never publish an incomplete split set, reuse a
+release URL for different bytes, or roll the version code backwards.
 
 ## Make the repository public
 

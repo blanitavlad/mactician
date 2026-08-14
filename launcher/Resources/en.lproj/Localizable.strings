@@ -33,6 +33,7 @@
 "effects_quality.performance.detail" = "Fewer effects and simpler LOD";
 
 "action.play" = "Play";
+"action.update_game" = "Update game";
 "action.install" = "Install";
 "action.pause" = "Pause";
 "action.resume" = "Resume";
@@ -48,6 +49,11 @@
 "action.restart_game" = "Restart game";
 "action.copy" = "Copy";
 "action.close" = "Close";
+"action.ok" = "OK";
+
+"game_update.result.title" = "Game update";
+"game_update.updated.message" = "TFT PBE was updated to version %@ and is ready to play.";
+"game_update.current.message" = "No update is available. Installed TFT PBE version %@ already matches the hosted version.";
 
 "telemetry.notice.title" = "Usage statistics and diagnostics";
 "telemetry.notice.body" = "Mactician sends one statistic after the first successful game launch: the launcher version and a rounded session-duration range. The event contains no persistent identifier or device characteristics.";
@@ -61,7 +67,7 @@
 
 "updates.title" = "Mactician Updates";
 "updates.description" = "Updates are verified, installed atomically, and never remove Android or Riot data.";
-"updates.automatic_checks" = "Checks automatically once per day";
+"updates.automatic_checks" = "Checks at launch and once per day";
 "updates.check" = "Check for Updates…";
 
 "install.required.title" = "Installation required";

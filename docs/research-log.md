@@ -98,6 +98,16 @@ thread on CPUs 0–6 and raised only their 28 `ANGLE-Worker` threads from nice 1
 to nice 0. The user observed that large first-use effect stalls disappeared,
 although steady match rendering remained heavy.
 
+TFT PBE `18.1-5300314` later changed the inherited Android profile from four
+remote OpenGL program compiler services to zero. The first launch therefore
+recreated the update-specific program-binary cache, and a later match still
+started with only 341 cached programs / 20.8 MB versus 2,353 programs / 106.4 MB
+on the previous build. Unreal reported both `Remote PSO services disabled` and
+`Ignoring precache PSO, external compiler not active`; the cache grew to 34 MB
+during that match. The launcher profiles now explicitly request the previously
+verified four OpenGL compiler services instead of inheriting this patch-varying
+game default.
+
 [`scripts/watch-root-pso.command`](../scripts/watch-root-pso.command) reapplies
 the setting every ten seconds because Android task profiles can restore the old
 affinity. One-second polling was rejected as unnecessary ADB/thread-scan noise.

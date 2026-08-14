@@ -57,6 +57,7 @@ for syntax_script in \
         "$PROJECT_DIR/scripts/android-environment.sh" \
         "$PROJECT_DIR/scripts/prepare-sparkle.command" \
         "$PROJECT_DIR/scripts/publish-mactician-update.command" \
+        "$PROJECT_DIR/scripts/publish-game-update.command" \
         "$PROJECT_DIR/scripts/build-mactician.command" \
         "$PROJECT_DIR/scripts/integration-test-mactician.command"; do
     zsh -o NO_BG_NICE -n "$syntax_script"
@@ -559,6 +560,7 @@ xcrun swiftc \
     -target "$TEST_TARGET" \
     -module-cache-path "$LAUNCHER_DIR/.build/module-cache" \
     "$LAUNCHER_DIR/Sources/CoreModels.swift" \
+    "$LAUNCHER_DIR/Sources/HostedGameUpdate.swift" \
     "$LAUNCHER_DIR/Sources/LauncherPresentation.swift" \
     "$LAUNCHER_DIR/Sources/LauncherTelemetryService.swift" \
     "$LAUNCHER_DIR/Sources/LauncherPaths.swift" \

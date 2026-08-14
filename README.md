@@ -19,7 +19,7 @@ Built for two tacticians. Shared with everyone.
 
 ## Project status
 
-- Version: **1.0.0** (build 36)
+- Version: **1.0.4** (build 40)
 - Host architecture: **Apple Silicon (`arm64`)**
 - Minimum deployment target: **macOS 12.0**, enforced by the build target and
   runtime preflight
@@ -86,7 +86,7 @@ Verify the version, build number,
 and the SHA-256 published with that release before opening it.
 
 1. Open the DMG and drag **Mactician** to **Applications**.
-2. Open it. Version 1.0.0 is ad-hoc signed and not Apple-notarized, so macOS may
+2. Open it. Version 1.0.4 is ad-hoc signed and not Apple-notarized, so macOS may
    block the first launch. In **System Settings → Privacy & Security**, confirm
    **Open Anyway**, then approve the second launch prompt.
 3. Review and accept the Android SDK terms, then choose **Install**. About
@@ -127,7 +127,7 @@ TFT_GAME_APK_DIR="$PROJECT_DIR/private/tft-pbe-apks" \
 ```
 
 This produces `dist/Mactician.app` and
-`dist/Mactician-1.0.0.dmg`, signed ad hoc for local validation.
+`dist/Mactician-1.0.4.dmg`, signed ad hoc for local validation.
 
 ### Provisioning integration test
 

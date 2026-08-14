@@ -37,7 +37,10 @@ enum InstallerIntegration {
         }
         let state = try result!.get()
         guard state.isReady,
-              state.gameBaseSHA256 == manifest.game.baseSHA256,
+              state.gameBaseSHA256?.range(
+                  of: "^[0-9a-f]{64}$",
+                  options: .regularExpression
+              ) != nil,
               FileManager.default.fileExists(atPath: paths.avdDirectory.appendingPathComponent("hardware-qemu.ini").path) else {
             throw IntegrationFailure("installer did not produce a ready AVD")
         }

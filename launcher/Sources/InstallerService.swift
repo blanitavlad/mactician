@@ -17,6 +17,17 @@ struct InstallerProgress {
     let fraction: Double
 }
 
+struct GameUpdateResult {
+    let state: InstallState
+    let release: GameRelease
+    let changed: Bool
+}
+
+struct GameUpdateAvailability {
+    let release: GameRelease
+    let isAvailable: Bool
+}
+
 final class InstallerService {
     typealias ProgressHandler = (InstallerProgress) -> Void
     typealias CompletionHandler = (Result<InstallState, Error>) -> Void
@@ -38,6 +49,13 @@ final class InstallerService {
         [
             "-fL", "--retry", "3", "--retry-delay", "2", "--continue-at", "-",
             component.url.absoluteString, "-o", destination.path
+        ]
+    }
+
+    static func hostedDownloadArguments(url: URL, destination: URL) -> [String] {
+        [
+            "-fL", "--retry", "3", "--retry-delay", "2", "--continue-at", "-",
+            "--proto", "=https", "--tlsv1.2", url.absoluteString, "-o", destination.path
         ]
     }
 
@@ -100,6 +118,76 @@ final class InstallerService {
         }
     }
 
+    func updateGame(
+        currentState: InstallState,
+        progress: @escaping ProgressHandler,
+        completion: @escaping (Result<GameUpdateResult, Error>) -> Void
+    ) {
+        lock.lock()
+        guard activeProcess == nil else {
+            lock.unlock()
+            completion(.failure(LauncherError.process("Installation is already in progress")))
+            return
+        }
+        cancelled = false
+        paused = false
+        lock.unlock()
+
+        queue.async { [self] in
+            do {
+                let result = try performGameUpdate(currentState: currentState, progress: progress)
+                DispatchQueue.main.async { completion(.success(result)) }
+            } catch {
+                SystemServices.appendLog("Game updater error: \(error.localizedDescription)", to: paths.launcherLog)
+                DispatchQueue.main.async { completion(.failure(error)) }
+            }
+        }
+    }
+
+    func checkGameUpdateAvailability(
+        currentState: InstallState,
+        completion: @escaping (Result<GameUpdateAvailability, Error>) -> Void
+    ) {
+        lock.lock()
+        guard activeProcess == nil else {
+            lock.unlock()
+            completion(.failure(LauncherError.process("Installation is already in progress")))
+            return
+        }
+        cancelled = false
+        paused = false
+        lock.unlock()
+
+        queue.async { [self] in
+            do {
+                try FileManager.default.createDirectory(
+                    at: paths.downloads,
+                    withIntermediateDirectories: true
+                )
+                let hosted = try fetchHostedGameFeed(progress: { _ in })
+                let release = hosted.feed.release
+                if let installedVersionCode = currentState.gameVersionCode,
+                   let remoteVersionCode = release.versionCode,
+                   remoteVersionCode < installedVersionCode {
+                    throw LauncherError.unsupportedGame(
+                        "The hosted TFT PBE release is older than the installed game"
+                    )
+                }
+                let availability = GameUpdateAvailability(
+                    release: release,
+                    isAvailable: HostedGameUpdate.isNewer(release, than: currentState)
+                )
+                DispatchQueue.main.async { completion(.success(availability)) }
+            } catch {
+                SystemServices.appendLog(
+                    "Game update availability check failed: \(error.localizedDescription)",
+                    to: paths.launcherLog
+                )
+                DispatchQueue.main.async { completion(.failure(error)) }
+            }
+        }
+    }
+
     func pause() {
         lock.lock()
         defer { lock.unlock() }
@@ -129,14 +217,32 @@ final class InstallerService {
     private func performInstall(repair: Bool, progress: @escaping ProgressHandler) throws -> InstallState {
         progressOnMain(progress, .init(phase: .checking, message: "Checking your Mac and files…", fraction: 0))
         try SystemServices.checkHost(minimumFreeBytes: manifest.minimumFreeBytes, root: paths.root)
-        try verifyBundledGame()
         try Self.prepareDirectories(at: paths)
+
+        let hosted: (data: Data, feed: HostedGameFeed)?
+        do {
+            hosted = try fetchHostedGameFeed(progress: progress)
+        } catch {
+            SystemServices.appendLog(
+                "Hosted TFT PBE feed unavailable, using bundled fallback: \(error.localizedDescription)",
+                to: paths.launcherLog
+            )
+            hosted = nil
+        }
+        let gameRelease = hosted?.feed.release ?? manifest.game
+        if hosted == nil {
+            try verifyGame(release: gameRelease, in: paths.gameResources)
+        }
 
         var state = SystemServices.loadState(from: paths.stateFile)
         state.stage = .downloading
         try SystemServices.saveState(state, to: paths.stateFile)
 
-        let totalBytes = manifest.components.reduce(Int64(0)) { $0 + $1.size }
+        let usesBundledGame = hosted?.feed.release.baseSHA256 == manifest.game.baseSHA256
+        let gameDownloadBytes = usesBundledGame
+            ? 0
+            : hosted?.feed.release.apks.reduce(Int64(0)) { $0 + $1.size } ?? 0
+        let totalBytes = manifest.components.reduce(Int64(0)) { $0 + $1.size } + gameDownloadBytes
         var completedBytes: Int64 = 0
         for component in manifest.components {
             try checkCancellation()
@@ -155,6 +261,18 @@ final class InstallerService {
             try SystemServices.saveState(state, to: paths.stateFile)
         }
 
+        let gameResources: URL
+        if let hosted, !usesBundledGame {
+            gameResources = try downloadHostedGame(
+                hosted.feed.release,
+                completedBytes: completedBytes,
+                totalBytes: totalBytes,
+                progress: progress
+            )
+        } else {
+            gameResources = paths.gameResources
+        }
+
         try verifySDKLayout()
         try EmulatorBrandingPatch.apply(
             at: paths.qemuSystem,
@@ -165,7 +283,7 @@ final class InstallerService {
 
         progressOnMain(progress, .init(phase: .extracting, message: "Preparing secure runtime…", fraction: 0.88))
         try Self.refreshRuntimeProject(at: paths)
-        let overlayHash = try buildOverlay()
+        let overlayHash = try buildOverlay(release: gameRelease, resources: gameResources)
 
         progressOnMain(progress, .init(phase: .creatingAVD, message: "Creating a clean Android device…", fraction: 0.91))
         try createAVDIfNeeded()
@@ -174,21 +292,88 @@ final class InstallerService {
         try SystemServices.saveState(state, to: paths.stateFile)
 
         progressOnMain(progress, .init(phase: .installingGame, message: "Installing TFT PBE…", fraction: 0.94))
-        try provisionGame()
+        try provisionGame(release: gameRelease, resources: gameResources)
         state.stage = .ready
-        state.gameVersion = manifest.game.version
-        state.gameBaseSHA256 = manifest.game.baseSHA256
+        state.gameVersion = gameRelease.version
+        state.gameVersionCode = gameRelease.versionCode
+        state.gameBaseSHA256 = gameRelease.baseSHA256
         state.overlaySHA256 = overlayHash
         try SystemServices.saveState(state, to: paths.stateFile)
+        if let hosted {
+            try saveHostedGameFeed(hosted.data)
+        }
         try? FileManager.default.removeItem(at: paths.downloads)
 
         progressOnMain(progress, .init(phase: .finished, message: "Done", fraction: 1))
         return state
     }
 
+    private func performGameUpdate(
+        currentState: InstallState,
+        progress: @escaping ProgressHandler
+    ) throws -> GameUpdateResult {
+        progressOnMain(progress, .init(
+            phase: .checking,
+            message: "Checking for TFT PBE updates…",
+            fraction: 0
+        ))
+        try Self.prepareDirectories(at: paths)
+        let hosted = try fetchHostedGameFeed(progress: progress)
+        let release = hosted.feed.release
+        if let installedVersionCode = currentState.gameVersionCode,
+           let remoteVersionCode = release.versionCode,
+           remoteVersionCode < installedVersionCode {
+            throw LauncherError.unsupportedGame("The hosted TFT PBE release is older than the installed game")
+        }
+
+        if currentState.gameVersion == release.version,
+           currentState.gameBaseSHA256 == release.baseSHA256 {
+            var state = currentState
+            state.gameVersionCode = release.versionCode
+            try SystemServices.saveState(state, to: paths.stateFile)
+            try saveHostedGameFeed(hosted.data)
+            progressOnMain(progress, .init(phase: .finished, message: "TFT PBE is up to date", fraction: 1))
+            return GameUpdateResult(state: state, release: release, changed: false)
+        }
+
+        let resources = try downloadHostedGame(
+            release,
+            completedBytes: 0,
+            totalBytes: release.apks.reduce(Int64(0)) { $0 + $1.size },
+            progress: progress
+        )
+
+        try verifySDKLayout()
+        progressOnMain(progress, .init(
+            phase: .extracting,
+            message: "Preparing the new game version…",
+            fraction: 0.88
+        ))
+        try Self.refreshRuntimeProject(at: paths)
+        let overlayHash = try buildOverlay(release: release, resources: resources)
+        progressOnMain(progress, .init(
+            phase: .installingGame,
+            message: "Updating TFT PBE…",
+            fraction: 0.94
+        ))
+        try provisionGame(release: release, resources: resources)
+
+        var state = currentState
+        state.stage = .ready
+        state.gameVersion = release.version
+        state.gameVersionCode = release.versionCode
+        state.gameBaseSHA256 = release.baseSHA256
+        state.overlaySHA256 = overlayHash
+        try SystemServices.saveState(state, to: paths.stateFile)
+        try saveHostedGameFeed(hosted.data)
+        try? FileManager.default.removeItem(at: paths.downloads)
+        progressOnMain(progress, .init(phase: .finished, message: "TFT PBE updated", fraction: 1))
+        return GameUpdateResult(state: state, release: release, changed: true)
+    }
+
     static func prepareDirectories(at paths: LauncherPaths) throws {
         let fileManager = FileManager.default
-        for directory in [paths.root, paths.downloads, paths.logDirectory, paths.avdHome] {
+        for directory in [paths.root, paths.downloads, paths.gameCache, paths.logDirectory, paths.avdHome] {
             try fileManager.createDirectory(at: directory, withIntermediateDirectories: true)
         }
         if fileManager.fileExists(atPath: paths.staging.path) {
@@ -197,9 +382,9 @@ final class InstallerService {
         try fileManager.createDirectory(at: paths.staging, withIntermediateDirectories: true)
     }
 
-    private func verifyBundledGame() throws {
-        for apk in manifest.game.apks {
-            let url = paths.gameResources.appendingPathComponent(apk.name)
+    private func verifyGame(release: GameRelease, in resources: URL) throws {
+        for apk in release.apks {
+            let url = resources.appendingPathComponent(apk.name)
             let attributes = try FileManager.default.attributesOfItem(atPath: url.path)
             let size = (attributes[.size] as? NSNumber)?.int64Value ?? -1
             guard size == apk.size else {
@@ -209,6 +394,136 @@ final class InstallerService {
             guard hash == apk.sha256 else {
                 throw LauncherError.integrity("SHA-256 mismatch for \(apk.name)")
             }
+        }
+    }
+
+    private func fetchHostedGameFeed(
+        progress: @escaping ProgressHandler
+    ) throws -> (data: Data, feed: HostedGameFeed) {
+        let partial = paths.downloads.appendingPathComponent("hosted-game-feed.json.partial")
+        try? FileManager.default.removeItem(at: partial)
+        try downloadHostedFile(
+            url: MacticianIdentity.gameUpdateURL,
+            to: partial,
+            displayName: "TFT PBE update information",
+            expectedSize: nil,
+            completedBytes: 0,
+            totalBytes: 1,
+            progress: progress
+        )
+        let attributes = try FileManager.default.attributesOfItem(atPath: partial.path)
+        let size = (attributes[.size] as? NSNumber)?.int64Value ?? -1
+        guard (1 ... 1_048_576).contains(size) else {
+            throw LauncherError.integrity("The TFT PBE update information is too large")
+        }
+        let data = try Data(contentsOf: partial)
+        let feed = try HostedGameUpdate.decodeAndVerify(data)
+        try? FileManager.default.removeItem(at: partial)
+        return (data, feed)
+    }
+
+    private func downloadHostedGame(
+        _ release: GameRelease,
+        completedBytes: Int64,
+        totalBytes: Int64,
+        progress: @escaping ProgressHandler
+    ) throws -> URL {
+        let fileManager = FileManager.default
+        let resources = paths.gameReleaseDirectory(baseSHA256: release.baseSHA256)
+        try fileManager.createDirectory(at: resources, withIntermediateDirectories: true)
+        var downloadedBeforeThisAPK = completedBytes
+
+        for apk in release.apks {
+            try checkCancellation()
+            guard let sourceURL = apk.url else {
+                throw LauncherError.invalidManifest("Hosted APK \(apk.name) has no URL")
+            }
+            let destination = resources.appendingPathComponent(apk.name)
+            if fileManager.fileExists(atPath: destination.path) {
+                let attributes = try fileManager.attributesOfItem(atPath: destination.path)
+                let size = (attributes[.size] as? NSNumber)?.int64Value ?? -1
+                if size == apk.size, try SystemServices.sha256(of: destination) == apk.sha256 {
+                    downloadedBeforeThisAPK += apk.size
+                    continue
+                }
+                try fileManager.removeItem(at: destination)
+            }
+
+            let partial = paths.downloads.appendingPathComponent("game-\(apk.sha256).partial")
+            try downloadHostedFile(
+                url: sourceURL,
+                to: partial,
+                displayName: apk.name,
+                expectedSize: apk.size,
+                completedBytes: downloadedBeforeThisAPK,
+                totalBytes: max(totalBytes, 1),
+                progress: progress
+            )
+            let attributes = try fileManager.attributesOfItem(atPath: partial.path)
+            let size = (attributes[.size] as? NSNumber)?.int64Value ?? -1
+            guard size == apk.size else {
+                try? fileManager.removeItem(at: partial)
+                throw LauncherError.integrity("Invalid size for hosted APK \(apk.name)")
+            }
+            guard try SystemServices.sha256(of: partial) == apk.sha256 else {
+                try? fileManager.removeItem(at: partial)
+                throw LauncherError.integrity("SHA-256 mismatch for hosted APK \(apk.name)")
+            }
+            try fileManager.moveItem(at: partial, to: destination)
+            downloadedBeforeThisAPK += apk.size
+        }
+        try verifyGame(release: release, in: resources)
+        return resources
+    }
+
+    private func saveHostedGameFeed(_ data: Data) throws {
+        try FileManager.default.createDirectory(
+            at: paths.hostedGameFeed.deletingLastPathComponent(),
+            withIntermediateDirectories: true
+        )
+        try data.write(to: paths.hostedGameFeed, options: .atomic)
+    }
+
+    private func downloadHostedFile(
+        url: URL,
+        to partial: URL,
+        displayName: String,
+        expectedSize: Int64?,
+        completedBytes: Int64,
+        totalBytes: Int64,
+        progress: @escaping ProgressHandler
+    ) throws {
+        let process = Process()
+        process.executableURL = URL(fileURLWithPath: "/usr/bin/curl")
+        process.arguments = Self.hostedDownloadArguments(url: url, destination: partial)
+        process.standardOutput = FileHandle.nullDevice
+        process.standardError = try SystemServices.appendHandle(for: paths.launcherLog)
+        lock.lock()
+        activeProcess = process
+        lock.unlock()
+        defer {
+            lock.lock()
+            activeProcess = nil
+            paused = false
+            lock.unlock()
+        }
+        try process.run()
+        while process.isRunning {
+            try checkCancellation()
+            let downloaded = ((try? FileManager.default.attributesOfItem(atPath: partial.path)[.size]) as? NSNumber)?.int64Value ?? 0
+            let boundedDownload = expectedSize.map { min(downloaded, $0) } ?? 0
+            let overall = min(0.86, Double(completedBytes + boundedDownload) / Double(totalBytes) * 0.86)
+            let isPaused = withLock { paused }
+            progressOnMain(progress, .init(
+                phase: isPaused ? .paused : .downloading,
+                message: isPaused ? "Download paused" : "Downloading \(displayName)…",
+                fraction: overall
+            ))
+            Thread.sleep(forTimeInterval: 0.25)
+        }
+        process.waitUntilExit()
+        guard process.terminationStatus == 0 else {
+            throw LauncherError.process("Could not download \(displayName). Check your connection and try again.")
         }
     }
 
@@ -427,10 +742,10 @@ final class InstallerService {
         return hash
     }
 
-    private func buildOverlay() throws -> String {
+    private func buildOverlay(release: GameRelease, resources: URL) throws -> String {
         try Self.prepareOverlay(
-            source: paths.gameResources.appendingPathComponent("base.apk"),
-            expectedSourceSHA256: manifest.game.baseSHA256,
+            source: resources.appendingPathComponent("base.apk"),
+            expectedSourceSHA256: release.baseSHA256,
             destination: paths.overlayAPK,
             stagingRoot: paths.staging,
             language: .english
@@ -504,7 +819,7 @@ final class InstallerService {
         try Data(ini.utf8).write(to: paths.avdINI, options: .atomic)
     }
 
-    private func provisionGame() throws {
+    private func provisionGame(release: GameRelease, resources: URL) throws {
         let environment = androidEnvironment()
         _ = try SystemServices.run(paths.adb, Self.adbArguments(["start-server"]), environment: environment)
         if (try? SystemServices.run(
@@ -567,14 +882,14 @@ final class InstallerService {
             return value?.trimmingCharacters(in: .whitespacesAndNewlines) == "0"
         }
 
-        let apkPaths = manifest.game.apks.map { paths.gameResources.appendingPathComponent($0.name).path }
+        let apkPaths = release.apks.map { resources.appendingPathComponent($0.name).path }
         _ = try SystemServices.run(
             paths.adb,
             Self.gameInstallArguments(apkPaths: apkPaths),
             environment: environment
         )
         let packagePaths = try SystemServices.run(paths.adb, Self.adbArguments([
-            "-s", "emulator-5582", "shell", "pm", "path", manifest.game.packageName
+            "-s", "emulator-5582", "shell", "pm", "path", release.packageName
         ]), environment: environment)
         guard let basePath = packagePaths
             .split(separator: "\n")
@@ -586,8 +901,8 @@ final class InstallerService {
         let guestHash = try SystemServices.run(paths.adb, Self.adbArguments([
             "-s", "emulator-5582", "shell", "sha256sum", basePath
         ]), environment: environment).split(separator: " ").first.map(String.init)
-        guard guestHash == manifest.game.baseSHA256 else {
-            throw LauncherError.unsupportedGame("The installed TFT PBE version does not match verified version \(manifest.game.version)")
+        guard guestHash == release.baseSHA256 else {
+            throw LauncherError.unsupportedGame("The installed TFT PBE version does not match verified version \(release.version)")
         }
         // Android 16 can acknowledge a large split-APK install before all
         // /data/app extents reach the virtual disk. Stopping QEMU immediately

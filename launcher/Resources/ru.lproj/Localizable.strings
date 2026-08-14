@@ -33,6 +33,7 @@
 "effects_quality.performance.detail" = "Меньше эффектов и более простой LOD";
 
 "action.play" = "Играть";
+"action.update_game" = "Обновить игру";
 "action.install" = "Установить";
 "action.pause" = "Приостановить";
 "action.resume" = "Продолжить";
@@ -48,6 +49,11 @@
 "action.restart_game" = "Перезапустить игру";
 "action.copy" = "Копировать";
 "action.close" = "Закрыть";
+"action.ok" = "ОК";
+
+"game_update.result.title" = "Обновление игры";
+"game_update.updated.message" = "TFT PBE обновлён до версии %@ и готов к запуску.";
+"game_update.current.message" = "Обновление не найдено. Установленная версия TFT PBE %@ совпадает с версией на сервере.";
 
 "telemetry.notice.title" = "Статистика использования и диагностика";
 "telemetry.notice.body" = "Mactician один раз отправляет статистику первого успешного запуска: версию лаунчера и округлённую длительность сессии. Событие не содержит постоянного идентификатора или характеристик устройства.";
@@ -61,7 +67,7 @@
 
 "updates.title" = "Обновления Mactician";
 "updates.description" = "Обновления проверяются, устанавливаются атомарно и не удаляют данные Android или Riot.";
-"updates.automatic_checks" = "Автоматическая проверка раз в сутки";
+"updates.automatic_checks" = "Проверка при запуске и раз в сутки";
 "updates.check" = "Проверить обновления…";
 
 "install.required.title" = "Требуется установка";

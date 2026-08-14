@@ -1,3 +1,4 @@
+import CryptoKit
 import Foundation
 
 @main
@@ -13,6 +14,79 @@ enum LauncherTests {
         try expect(manifest.schemaVersion == 1, "manifest schema")
         try expect(manifest.components.count == 3, "component count")
         try expect(manifest.game.apks.count == 4, "APK count")
+        let hostedPrivateKey = Curve25519.Signing.PrivateKey()
+        let hostedRelease = GameRelease(
+            packageName: "com.riotgames.league.teamfighttactics.pbe",
+            version: "18.2-test",
+            versionCode: 8_220_001,
+            baseSHA256: String(repeating: "a", count: 64),
+            apks: [
+                GameAPK(
+                    name: "base.apk",
+                    size: 100,
+                    sha256: String(repeating: "a", count: 64),
+                    url: URL(string: "https://sergeinaumov.dev/mactician/updates/game/releases/aaaaaaaa/base.apk")
+                ),
+                GameAPK(
+                    name: "split_config.arm64_v8a.apk",
+                    size: 50,
+                    sha256: String(repeating: "b", count: 64),
+                    url: URL(string: "https://sergeinaumov.dev/mactician/updates/game/releases/aaaaaaaa/split_config.arm64_v8a.apk")
+                )
+            ]
+        )
+        let hostedPayload = try JSONEncoder().encode(HostedGameFeed(
+            schemaVersion: 1,
+            publishedAt: "2026-08-12T12:00:00Z",
+            release: hostedRelease
+        ))
+        let hostedSignature = try hostedPrivateKey.signature(for: hostedPayload)
+        let hostedEnvelope = try JSONEncoder().encode(HostedGameFeedEnvelope(
+            schemaVersion: 1,
+            payload: hostedPayload.base64EncodedString(),
+            signature: hostedSignature.base64EncodedString()
+        ))
+        let verifiedHostedFeed = try HostedGameUpdate.decodeAndVerify(
+            hostedEnvelope,
+            publicKeyBase64: hostedPrivateKey.publicKey.rawRepresentation.base64EncodedString()
+        )
+        try expect(verifiedHostedFeed.release == hostedRelease, "signed hosted game feed")
+        var olderInstallState = InstallState()
+        olderInstallState.gameVersion = "18.1-old"
+        olderInstallState.gameVersionCode = 8_210_000
+        try expect(
+            HostedGameUpdate.isNewer(hostedRelease, than: olderInstallState),
+            "newer hosted game version detection"
+        )
+        var currentInstallState = olderInstallState
+        currentInstallState.gameVersion = hostedRelease.version
+        currentInstallState.gameVersionCode = hostedRelease.versionCode
+        try expect(
+            !HostedGameUpdate.isNewer(hostedRelease, than: currentInstallState),
+            "current hosted game version detection"
+        )
+        var newerInstallState = currentInstallState
+        newerInstallState.gameVersionCode = 8_230_000
+        try expect(
+            !HostedGameUpdate.isNewer(hostedRelease, than: newerInstallState),
+            "hosted game rollback is not an update"
+        )
+        var invalidSignature = hostedSignature
+        invalidSignature[invalidSignature.startIndex] ^= 0x01
+        let invalidEnvelope = try JSONEncoder().encode(HostedGameFeedEnvelope(
+            schemaVersion: 1,
+            payload: hostedPayload.base64EncodedString(),
+            signature: invalidSignature.base64EncodedString()
+        ))
+        do {
+            _ = try HostedGameUpdate.decodeAndVerify(
+                invalidEnvelope,
+                publicKeyBase64: hostedPrivateKey.publicKey.rawRepresentation.base64EncodedString()
+            )
+            throw TestFailure("tampered hosted game feed was accepted")
+        } catch let error as LauncherError {
+            try expect(error == .integrity("The TFT PBE feed signature is invalid"), "tampered game feed rejection")
+        }
         try expect(
             manifest.profiles.map(\.id) == ["balanced", "quality", "ultra", "4k"],
             "profile order"
@@ -527,8 +601,8 @@ enum LauncherTests {
             "app bundle identifier"
         )
         try expect(infoPlist["CFBundleIconFile"] as? String == "Mactician.icns", "launcher icon name")
-        try expect(infoPlist["CFBundleShortVersionString"] as? String == "1.0.0", "launcher version")
-        try expect(infoPlist["CFBundleVersion"] as? String == "36", "launcher build")
+        try expect(infoPlist["CFBundleShortVersionString"] as? String == "1.0.4", "launcher version")
+        try expect(infoPlist["CFBundleVersion"] as? String == "40", "launcher build")
         try expect(
             infoPlist["SUFeedURL"] as? String == "https://sergeinaumov.dev/mactician/updates/appcast.xml",
             "Sparkle appcast URL"
@@ -547,6 +621,15 @@ enum LauncherTests {
         try expect(
             infoPlist["SUVerifyUpdateBeforeExtraction"] as? Bool == true,
             "Sparkle pre-extraction verification policy"
+        )
+        let updateControllerSource = try String(
+            contentsOf: sourceRoot.appendingPathComponent("Sources/LauncherUpdateController.swift"),
+            encoding: .utf8
+        )
+        try expect(
+            updateControllerSource.contains("updaterController.updater.automaticallyChecksForUpdates")
+                && updateControllerSource.contains("updaterController.updater.checkForUpdatesInBackground()"),
+            "Sparkle update check on every launch"
         )
         let appTransportSecurity = infoPlist["NSAppTransportSecurity"] as? [String: Any]
         try expect(
@@ -617,10 +700,10 @@ enum LauncherTests {
             "emulator host icon name"
         )
         try expect(
-            emulatorHostInfo["CFBundleShortVersionString"] as? String == "1.0.0",
+            emulatorHostInfo["CFBundleShortVersionString"] as? String == "1.0.4",
             "emulator host version"
         )
-        try expect(emulatorHostInfo["CFBundleVersion"] as? String == "36", "emulator host build")
+        try expect(emulatorHostInfo["CFBundleVersion"] as? String == "40", "emulator host build")
         try expect(
             emulatorHostInfo["CFBundleIdentifier"] as? String
                 == "dev.sergeinaumov.mactician.game-host",
@@ -1041,6 +1124,10 @@ enum LauncherTests {
                 profileText.contains("CVars=sg.ResolutionQuality=100")
                     && profileText.contains("CVars=r.ScreenPercentage=100"),
                 "effects profiles preserve selected resolution"
+            )
+            try expect(
+                profileText.contains("CVars=Android.OpenGL.NumRemoteProgramCompileServices=4"),
+                "effects profiles preserve asynchronous OpenGL PSO compilation"
             )
         }
         try expect(

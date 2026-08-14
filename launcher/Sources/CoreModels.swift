@@ -17,6 +17,10 @@ enum MacticianIdentity {
         string: "https://sergeinaumov.dev/writing/how-i-built-mactician"
     )!
     static let issueURL = URL(string: "https://github.com/tweet9ra/mactician/issues/new/choose")!
+    static let gameUpdateURL = URL(
+        string: "https://sergeinaumov.dev/mactician/updates/game/manifest.json"
+    )!
+    static let gameUpdatePublicKeyBase64 = "Nadxne/Zs1kndXT8OpaShZCEgK/LqUtMv4aqGQNzCcM="
 }
 
 struct ReleaseManifest: Codable, Equatable {
@@ -79,13 +83,16 @@ struct SDKComponent: Codable, Equatable, Identifiable {
 struct GameRelease: Codable, Equatable {
     let packageName: String
     let version: String
+    let versionCode: Int?
     let baseSHA256: String
     let apks: [GameAPK]
 
     func validate() throws {
         guard packageName == "com.riotgames.league.teamfighttactics.pbe",
+              !version.isEmpty,
               baseSHA256.isLowercaseSHA256,
-              apks.count == 4,
+              (1 ... 32).contains(apks.count),
+              Set(apks.map(\.name)).count == apks.count,
               apks.first?.name == "base.apk",
               apks.first?.sha256 == baseSHA256 else {
             throw LauncherError.invalidManifest("Invalid TFT PBE release")
@@ -103,6 +110,7 @@ struct GameAPK: Codable, Equatable {
     let name: String
     let size: Int64
     let sha256: String
+    let url: URL?
 }
 
 struct LaunchProfile: Codable, Equatable, Identifiable {
@@ -209,6 +217,7 @@ struct InstallState: Codable, Equatable {
     var stage: Stage = .empty
     var installedComponents: [String: String] = [:]
     var gameVersion: String?
+    var gameVersionCode: Int?
     var gameBaseSHA256: String?
     var overlaySHA256: String?
     var updatedAt: Date = Date()

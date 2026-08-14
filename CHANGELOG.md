@@ -1,10 +1,46 @@
 # Changelog
 
-The current application metadata is version 1.0.0, build 36.
+The current application metadata is version 1.0.4, build 40.
 
 ## Unreleased
 
 No changes yet.
+
+## 1.0.4 — 2026-08-14
+
+### Fixed
+
+- Restore four asynchronous OpenGL PSO compiler services when a TFT update
+  disables them in its inherited Android device profile, avoiding first-use
+  shader compilation stalls on the gameplay render path.
+
+## 1.0.3 — 2026-08-14
+
+### Changed
+
+- Check the signed TFT PBE feed when the launcher becomes ready.
+- Show **Update game** in place of **Play** only when a newer verified game
+  version is available.
+- Prevent starting a known-outdated game build until its update completes.
+
+## 1.0.2 — 2026-08-13
+
+### Fixed
+
+- Check for Mactician updates on every launch instead of waiting only for the
+  daily Sparkle schedule.
+- Show an explicit localized result after a game update check, including the
+  installed TFT PBE version when no newer hosted build is available.
+- Record completed game update checks in the launcher log.
+
+## 1.0.1 — 2026-08-13
+
+### Added
+
+- Added a separately signed TFT PBE update channel hosted on
+  `sergeinaumov.dev`.
+- Added in-place split APK updates that preserve Riot sign-in and local game
+  data.
 
 ## 1.0.0 — 2026-08-10
 

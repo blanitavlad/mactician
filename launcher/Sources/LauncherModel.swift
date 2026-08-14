@@ -30,9 +30,13 @@ final class LauncherModel: ObservableObject {
     @Published var failure: LauncherFailure?
     @Published var hotkeyStatus: LauncherHotkeyStatus = .permissionRequired
     @Published var announcement: LauncherAnnouncement?
+    @Published private(set) var gameUpdateResultMessage: String?
+    @Published private(set) var isGameUpdateAvailable = false
+    @Published private(set) var isCheckingGameUpdate = false
     @Published var shouldShowTelemetryNotice: Bool
     @Published var extendedDiagnosticsEnabled: Bool
     @Published private(set) var activeConfiguration: LaunchConfigurationSnapshot?
+    @Published private(set) var gameRelease: GameRelease
 
     let paths: LauncherPaths
     let manifest: ReleaseManifest
@@ -62,8 +66,10 @@ final class LauncherModel: ObservableObject {
             self.paths = paths
             self.manifest = manifest
             installState = SystemServices.loadState(from: paths.stateFile)
+            gameRelease = (try? HostedGameUpdate.loadVerifiedFeed(from: paths.hostedGameFeed).release)
+                ?? manifest.game
             installer = InstallerService(paths: paths, manifest: manifest)
-            runtime = RuntimeController(paths: paths, manifest: manifest)
+            runtime = RuntimeController(paths: paths)
             let saved = UserDefaults.standard.string(forKey: "launchProfile") ?? "balanced"
             selectedProfileID = manifest.profiles.contains(where: { $0.id == saved }) ? saved : "balanced"
             selectedEffectsQualityID = EffectsQuality.selection(
@@ -95,7 +101,11 @@ final class LauncherModel: ObservableObject {
             )
             shouldShowTelemetryNotice = telemetry.shouldShowNotice
             extendedDiagnosticsEnabled = telemetry.isExtendedDiagnosticsEnabled
-            if Self.installationLooksReady(state: installState, paths: paths, manifest: manifest) {
+            if Self.installationLooksReady(
+                state: installState,
+                paths: paths,
+                gameRelease: gameRelease
+            ) {
                 mode = .ready
                 status = "Ready to play"
                 detail = "Choose graphics and language, then press Play."
@@ -158,7 +168,7 @@ final class LauncherModel: ObservableObject {
     }
 
     var gameDisplayVersion: String {
-        LauncherMetadata.gameDisplayVersion(from: manifest.game.version)
+        LauncherMetadata.gameDisplayVersion(from: gameRelease.version)
     }
 
     var downloadSize: String {
@@ -183,7 +193,7 @@ final class LauncherModel: ObservableObject {
     }
 
     var maintenanceLocked: Bool {
-        mode == .installing || settingsLocked
+        mode == .installing || isCheckingGameUpdate || settingsLocked
     }
 
     var selectedConfiguration: LaunchConfigurationSnapshot {
@@ -281,6 +291,9 @@ final class LauncherModel: ObservableObject {
             case let .success(state):
                 installCancellationRequested = false
                 installState = state
+                gameRelease = (try? HostedGameUpdate.loadVerifiedFeed(from: paths.hostedGameFeed).release)
+                    ?? manifest.game
+                isGameUpdateAvailable = false
                 mode = .ready
                 progress = 1
                 status = "Ready to play"
@@ -325,7 +338,10 @@ final class LauncherModel: ObservableObject {
     }
 
     func play() {
-        guard mode == .ready, !shouldShowTelemetryNotice else { return }
+        guard mode == .ready,
+              !shouldShowTelemetryNotice,
+              !isCheckingGameUpdate,
+              !isGameUpdateAvailable else { return }
         failure = nil
         runtimeHadError = false
         stopRequested = false
@@ -347,7 +363,9 @@ final class LauncherModel: ObservableObject {
                 cpuCores: selectedCPUCores,
                 memoryMB: selectedMemoryMB,
                 uiScalePercent: selectedUIScalePercent,
-                state: installState
+                state: installState,
+                gameRelease: gameRelease,
+                gameResources: paths.gameResources(for: gameRelease)
             ) { [weak self] event in
                 self?.handle(event)
             }
@@ -377,6 +395,85 @@ final class LauncherModel: ObservableObject {
         install(repair: true)
     }
 
+    func updateGame() {
+        guard mode == .ready, isGameUpdateAvailable, !runtime.isRunning else { return }
+        failure = nil
+        gameUpdateResultMessage = nil
+        installationWasCancelled = false
+        installCancellationRequested = false
+        mode = .installing
+        isPaused = false
+        installerPhase = .checking
+        status = "Checking for TFT PBE updates…"
+        detail = "Updates are downloaded securely from sergeinaumov.dev."
+        progress = 0
+        installer.updateGame(currentState: installState, progress: { [weak self] value in
+            guard let self else { return }
+            progress = value.fraction
+            status = value.message
+            installerPhase = value.phase
+            isPaused = value.phase == .paused
+        }, completion: { [weak self] result in
+            guard let self else { return }
+            switch result {
+            case let .success(update):
+                installState = update.state
+                gameRelease = update.release
+                isGameUpdateAvailable = false
+                mode = .ready
+                progress = 1
+                status = update.changed ? "TFT PBE updated" : "TFT PBE is up to date"
+                detail = update.changed
+                    ? "The new game version is ready to play."
+                    : "No game update is available."
+                let displayVersion = LauncherMetadata.gameDisplayVersion(from: update.release.version)
+                gameUpdateResultMessage = LauncherL10n.format(
+                    update.changed ? "game_update.updated.message" : "game_update.current.message",
+                    displayVersion
+                )
+                let versionCode = update.release.versionCode.map(String.init) ?? "unknown"
+                SystemServices.appendLog(
+                    "Game update check completed: \(update.changed ? "installed" : "already current") "
+                        + "\(update.release.version) (versionCode \(versionCode)).",
+                    to: paths.launcherLog
+                )
+            case let .failure(error):
+                fail(
+                    error.localizedDescription,
+                    origin: failureOrigin(for: error, fallback: .installation)
+                )
+            }
+        })
+    }
+
+    func refreshGameUpdateAvailability() {
+        guard mode == .ready, !runtime.isRunning, !isCheckingGameUpdate else { return }
+        isCheckingGameUpdate = true
+        isGameUpdateAvailable = false
+        installer.checkGameUpdateAvailability(currentState: installState) { [weak self] result in
+            guard let self else { return }
+            isCheckingGameUpdate = false
+            switch result {
+            case let .success(availability):
+                isGameUpdateAvailable = availability.isAvailable
+                if availability.isAvailable {
+                    let versionCode = availability.release.versionCode.map(String.init) ?? "unknown"
+                    SystemServices.appendLog(
+                        "TFT PBE update available: \(availability.release.version) "
+                            + "(versionCode \(versionCode)).",
+                        to: paths.launcherLog
+                    )
+                }
+            case .failure:
+                isGameUpdateAvailable = false
+            }
+        }
+    }
+
+    func dismissGameUpdateResult() {
+        gameUpdateResultMessage = nil
+    }
+
     func reset() {
         guard !maintenanceLocked, !runtime.isRunning else { return }
         loginAnimationRepair.stop()
@@ -389,6 +486,8 @@ final class LauncherModel: ObservableObject {
                 try FileManager.default.removeItem(at: paths.root)
             }
             installState = InstallState()
+            isGameUpdateAvailable = false
+            isCheckingGameUpdate = false
             mode = .needsInstall
             failure = nil
             installationWasCancelled = false
@@ -581,11 +680,11 @@ final class LauncherModel: ObservableObject {
     private static func installationLooksReady(
         state: InstallState,
         paths: LauncherPaths,
-        manifest: ReleaseManifest
+        gameRelease: GameRelease
     ) -> Bool {
         state.isReady
-            && state.gameVersion == manifest.game.version
-            && state.gameBaseSHA256 == manifest.game.baseSHA256
+            && state.gameVersion == gameRelease.version
+            && state.gameBaseSHA256 == gameRelease.baseSHA256
             && state.overlaySHA256 != nil
             && FileManager.default.isExecutableFile(atPath: paths.adb.path)
             && FileManager.default.isExecutableFile(atPath: paths.emulator.path)

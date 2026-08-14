@@ -45,6 +45,18 @@ struct LauncherPaths {
     var avdBootCompleted: URL { avdDirectory.appendingPathComponent("bootcompleted.ini") }
     var runtimeProject: URL { root.appendingPathComponent("runtime-project", isDirectory: true) }
     var downloads: URL { root.appendingPathComponent("downloads", isDirectory: true) }
+    var gameCache: URL { root.appendingPathComponent("game", isDirectory: true) }
+    var hostedGameFeed: URL { gameCache.appendingPathComponent("manifest.json") }
+    func gameReleaseDirectory(baseSHA256: String) -> URL {
+        gameCache.appendingPathComponent("releases/\(baseSHA256)", isDirectory: true)
+    }
+    func gameResources(for release: GameRelease) -> URL {
+        let hosted = gameReleaseDirectory(baseSHA256: release.baseSHA256)
+        if FileManager.default.fileExists(atPath: hosted.appendingPathComponent("base.apk").path) {
+            return hosted
+        }
+        return gameResources
+    }
     var staging: URL { root.appendingPathComponent(".staging", isDirectory: true) }
     var stateFile: URL { root.appendingPathComponent("install-state.json") }
     var logDirectory: URL { root.appendingPathComponent("logs", isDirectory: true) }

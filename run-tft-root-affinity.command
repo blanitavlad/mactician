@@ -67,7 +67,7 @@ readonly ANGLE_OPENGL_PROFILE_OVERRIDE="${TFT_ANGLE_OPENGL_PROFILE:-}"
 readonly ANGLE_OPENGL_PROFILE="${ANGLE_OPENGL_PROFILE_OVERRIDE:-$ANGLE_OPENGL_DIR/Android_Codex.DeviceProfiles.ini}"
 readonly ANGLE_OPENGL_PROFILE_SHA256="${TFT_ANGLE_OPENGL_PROFILE_SHA256:-}"
 readonly ANGLE_OPENGL_REMOTE_DIR="/data/local/tmp/tft-angle-opengl"
-readonly ORIGINAL_BASE_SHA256="2f4996a620623d0b958383bfe58bdec78fb70cca095099ca2474f3d08c62ff18"
+readonly ORIGINAL_BASE_SHA256="${TFT_ORIGINAL_BASE_APK_SHA256:-2f4996a620623d0b958383bfe58bdec78fb70cca095099ca2474f3d08c62ff18}"
 readonly DIRECT_VULKAN_SHA256="3cabacef5ba122467d2eea8fb2874f41530a8d0c1b8cda3f391a58134b936236"
 readonly ANGLE_OPENGL_SHA256="${TFT_ANGLE_OPENGL_APK_SHA256:-f3a257750e1875298a1203c40e9bb98aaf9521b4466f75a53d16fd2d6ea63865}"
 readonly UNREAL_LIB_OVERLAY="${TFT_UNREAL_LIB_OVERLAY:-}"
@@ -912,7 +912,7 @@ if [[ -n "$OVERLAY_APK" ]]; then
             | awk '{ print $1 }'
     )"
     if [[ "$INSTALLED_BASE_SHA256" != "$ORIGINAL_BASE_SHA256" ]]; then
-        print "The installed base.apk does not match the expected original TFT PBE 18.1-5212127 build."
+        print "The installed base.apk does not match the signed TFT PBE update manifest."
         print "Actual SHA-256: $INSTALLED_BASE_SHA256"
         exit 42
     fi

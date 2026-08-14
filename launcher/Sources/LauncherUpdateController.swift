@@ -20,6 +20,10 @@ final class LauncherUpdateController: ObservableObject {
             .sink { [weak self] value in
                 self?.canCheckForUpdates = value
             }
+
+        if startingUpdater && updaterController.updater.automaticallyChecksForUpdates {
+            updaterController.updater.checkForUpdatesInBackground()
+        }
     }
 
     func checkForUpdates() {

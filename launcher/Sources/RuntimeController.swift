@@ -4,15 +4,13 @@ final class RuntimeController {
     typealias EventHandler = (RuntimeEvent) -> Void
 
     private let paths: LauncherPaths
-    private let manifest: ReleaseManifest
     private let parsingQueue = DispatchQueue(label: "dev.sergeinaumov.mactician.runtime-events")
     private var eventBuffer = Data()
     private var process: Process?
     private var outputPipe: Pipe?
 
-    init(paths: LauncherPaths, manifest: ReleaseManifest) {
+    init(paths: LauncherPaths) {
         self.paths = paths
-        self.manifest = manifest
     }
 
     var isRunning: Bool { process?.isRunning == true }
@@ -25,14 +23,16 @@ final class RuntimeController {
         memoryMB: Int,
         uiScalePercent: Int,
         state: InstallState,
+        gameRelease: GameRelease,
+        gameResources: URL,
         events: @escaping EventHandler
     ) throws {
         guard !isRunning else {
             throw LauncherError.process("TFT is already launching")
         }
         guard state.isReady,
-              state.gameVersion == manifest.game.version,
-              state.gameBaseSHA256 == manifest.game.baseSHA256,
+              state.gameVersion == gameRelease.version,
+              state.gameBaseSHA256 == gameRelease.baseSHA256,
               state.overlaySHA256 != nil else {
             throw LauncherError.unsupportedGame("The installed TFT version is not supported by this launcher build")
         }
@@ -48,8 +48,8 @@ final class RuntimeController {
         // update can repair an existing AVD without reinstalling Android or TFT.
         try InstallerService.refreshRuntimeProject(at: paths)
         let overlayHash = try InstallerService.prepareOverlay(
-            source: paths.gameResources.appendingPathComponent("base.apk"),
-            expectedSourceSHA256: manifest.game.baseSHA256,
+            source: gameResources.appendingPathComponent("base.apk"),
+            expectedSourceSHA256: gameRelease.baseSHA256,
             destination: paths.overlayAPK,
             stagingRoot: paths.staging,
             language: language
@@ -106,6 +106,7 @@ final class RuntimeController {
             "TFT_INPUT_BRIDGE_ENABLED": "0",
             "TFT_ANGLE_OPENGL_APK": paths.overlayAPK.path,
             "TFT_ANGLE_OPENGL_APK_SHA256": overlayHash,
+            "TFT_ORIGINAL_BASE_APK_SHA256": gameRelease.baseSHA256,
             "TFT_ANGLE_OPENGL_PROFILE": graphicsProfile.path,
             "TFT_ANGLE_OPENGL_PROFILE_SHA256": profileHash,
             "TFT_ANGLE_DISABLED_FEATURES": "preferSubmitAtFBOBoundary"
