@@ -52,7 +52,8 @@ readonly INPUT_BRIDGE_ENABLED="${TFT_INPUT_BRIDGE_ENABLED:-1}"
 readonly INPUT_DIAGNOSTICS="${TFT_INPUT_DIAGNOSTICS:-0}"
 readonly INPUT_DIAGNOSTICS_LOG="${TFT_INPUT_DIAGNOSTICS_LOG:-}"
 readonly INPUT_BRIDGE_SOURCE="$PROJECT_DIR/tools/tft-input-bridge.swift"
-readonly INPUT_BRIDGE_BINARY="$PROJECT_DIR/runtime/tft-input-bridge"
+readonly INPUT_BRIDGE_APP="$PROJECT_DIR/runtime/TFTInputBridge.app"
+readonly INPUT_BRIDGE_BINARY="$INPUT_BRIDGE_APP/Contents/MacOS/tft-input-bridge"
 readonly INPUT_SHOP_POINT="${TFT_INPUT_SHOP_POINT:-0.96,0.93}"
 readonly INPUT_REROLL_POINT="${TFT_INPUT_REROLL_POINT:-0.95,0.72}"
 readonly INPUT_XP_POINT="${TFT_INPUT_XP_POINT:-0.032,0.925}"
@@ -471,14 +472,14 @@ if [[ "$INPUT_BRIDGE_ENABLED" == "1" ]]; then
         exit 1
     fi
     if [[ ! -x "$INPUT_BRIDGE_BINARY" || "$INPUT_BRIDGE_SOURCE" -nt "$INPUT_BRIDGE_BINARY" ]]; then
-        readonly INPUT_BRIDGE_NEXT="$INPUT_BRIDGE_BINARY.next"
         mkdir -p "${INPUT_BRIDGE_BINARY:h}" "$PROJECT_DIR/runtime/swift-module-cache"
         /usr/bin/xcrun swiftc \
             -O \
             -module-cache-path "$PROJECT_DIR/runtime/swift-module-cache" \
             "$INPUT_BRIDGE_SOURCE" \
-            -o "$INPUT_BRIDGE_NEXT"
-        mv -f "$INPUT_BRIDGE_NEXT" "$INPUT_BRIDGE_BINARY"
+            -o "$INPUT_BRIDGE_BINARY"
+        cp -f "$INPUT_BRIDGE_BINARY" "$PROJECT_DIR/runtime/tft-input-bridge" 2>/dev/null || true
+        codesign -s - -f --deep --identifier "dev.sergeinaumov.mactician.tft-input-bridge" "$INPUT_BRIDGE_APP" 2>/dev/null || true
     fi
 fi
 
