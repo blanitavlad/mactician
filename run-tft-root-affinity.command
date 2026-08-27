@@ -13,13 +13,16 @@ readonly EMULATOR
 ADB="$(tft_resolve_adb)"
 readonly ADB
 readonly AVD_HOME="${TFT_ROOT_AVD_HOME:-$(tft_resolve_avd_home)}"
+export ANDROID_SDK_ROOT="$SDK_ROOT"
+export ANDROID_HOME="$SDK_ROOT"
+export ANDROID_AVD_HOME="$AVD_HOME"
 readonly AVD_NAME="${TFT_AVD_NAME:-TftRootAffinity}"
 readonly AVD_LOCK_FILE="$AVD_HOME/$AVD_NAME.avd/.mactician-avd.lock"
 readonly INHERITED_AVD_LOCK_OWNER="${TFT_AVD_LOCK_OWNER_PID:-}"
 readonly SERIAL="${TFT_SERIAL:-emulator-5582}"
 readonly EMULATOR_PORT="${TFT_EMULATOR_PORT:-${SERIAL#emulator-}}"
 readonly BOOT_TIMEOUT_SECONDS="${TFT_BOOT_TIMEOUT_SECONDS:-120}"
-readonly PACKAGE="com.riotgames.league.teamfighttactics.pbe"
+readonly PACKAGE="${TFT_PACKAGE:-${TFT_PACKAGE_NAME:-com.riotgames.league.teamfighttactics.pbe}}"
 readonly ACTIVITY="com.epicgames.unreal.SplashActivity"
 readonly ANGLE_BASE_FEATURES="exposeNonConformantExtensionsAndVersions:exposeES32ForTesting"
 readonly ANGLE_EXTRA_FEATURES="${TFT_ANGLE_EXTRA_FEATURES:-}"
@@ -31,12 +34,12 @@ readonly VIRTIO_GPU_NATIVE_SYNC="${TFT_VIRTIO_GPU_NATIVE_SYNC:-0}"
 readonly VIRTIO_GPU_NEXT="${TFT_VIRTIO_GPU_NEXT:-0}"
 readonly GL_DRAW_FLUSH_INTERVAL="${TFT_GL_DRAW_FLUSH_INTERVAL:-}"
 readonly HWUI_RENDERER="${TFT_HWUI_RENDERER:-skiagl}"
-readonly GRAPHICS_PROFILE="${TFT_GRAPHICS_PROFILE:-stable}"
+readonly GRAPHICS_PROFILE="${TFT_GRAPHICS_PROFILE:-osft}"
 readonly DISPLAY_SIZE="${TFT_DISPLAY_SIZE:-1600x900}"
 readonly DISPLAY_DENSITY="${TFT_DISPLAY_DENSITY:-260}"
 readonly UI_SCALE="${TFT_UI_SCALE:-1.0}"
-readonly CPU_CORES="${TFT_CPU_CORES:-7}"
-readonly MEMORY_MB="${TFT_MEMORY_MB:-6144}"
+readonly CPU_CORES="${TFT_CPU_CORES:-8}"
+readonly MEMORY_MB="${TFT_MEMORY_MB:-8192}"
 readonly GAME_LANGUAGE="${TFT_GAME_LANGUAGE:-en-US}"
 readonly AUDIO_ENABLED="${TFT_AUDIO_ENABLED:-1}"
 readonly RENDERER="${TFT_RENDERER:-angle}"
@@ -51,7 +54,7 @@ readonly INPUT_DIAGNOSTICS_LOG="${TFT_INPUT_DIAGNOSTICS_LOG:-}"
 readonly INPUT_BRIDGE_SOURCE="$PROJECT_DIR/tools/tft-input-bridge.swift"
 readonly INPUT_BRIDGE_BINARY="$PROJECT_DIR/runtime/tft-input-bridge"
 readonly INPUT_SHOP_POINT="${TFT_INPUT_SHOP_POINT:-0.96,0.93}"
-readonly INPUT_REROLL_POINT="${TFT_INPUT_REROLL_POINT:-0.955,0.79}"
+readonly INPUT_REROLL_POINT="${TFT_INPUT_REROLL_POINT:-0.95,0.72}"
 readonly INPUT_XP_POINT="${TFT_INPUT_XP_POINT:-0.032,0.925}"
 readonly INPUT_TRAITS_POINT="${TFT_INPUT_TRAITS_POINT:-0.029,0.04}"
 readonly INPUT_ITEMS_POINT="${TFT_INPUT_ITEMS_POINT:-0.059,0.04}"
@@ -311,13 +314,8 @@ if [[ -n "$OVERLAY_APK" ]]; then
     fi
 fi
 if [[ -n "$ANGLE_OPENGL_PROFILE_OVERRIDE" ]]; then
-    if [[ "$RENDERER" != "angle-opengl" ]] \
-            || [[ ! "$ANGLE_OPENGL_PROFILE_SHA256" =~ '^[0-9a-f]{64}$' ]]; then
-        print "The custom ANGLE/OpenGL profile requires TFT_RENDERER=angle-opengl and a verified SHA-256."
-        exit 2
-    fi
-    if [[ "$(shasum -a 256 "$ANGLE_OPENGL_PROFILE" | awk '{ print $1 }')" != "$ANGLE_OPENGL_PROFILE_SHA256" ]]; then
-        print "The custom ANGLE/OpenGL profile SHA-256 does not match the expected value."
+    if [[ ! -f "$ANGLE_OPENGL_PROFILE" ]]; then
+        print "The custom DeviceProfiles.ini was not found: $ANGLE_OPENGL_PROFILE"
         exit 1
     fi
 fi
@@ -833,7 +831,7 @@ if [[ "$INPUT_BRIDGE_ENABLED" == "1" ]]; then
 fi
 
 if ! "$ADB" -s "$SERIAL" shell pm path "$PACKAGE" | grep -q '^package:'; then
-    print "TFT PBE is not installed in the rootable AVD. The launcher does not copy the APK or private data."
+    print "TFT is not installed in the rootable AVD. The launcher does not copy the APK or private data."
     exit 1
 fi
 
@@ -1038,6 +1036,14 @@ if [[ -n "$OVERLAY_APK" ]]; then
             || "$ACTIVE_PROFILE_CONTEXT" != "$PROFILE_TARGET_CONTEXT" ]]; then
         print "A single guest DeviceProfiles.ini mount could not be established."
         exit 1
+    fi
+else
+    if [[ -f "$ANGLE_OPENGL_PROFILE" ]]; then
+        "$ADB" -s "$SERIAL" shell mkdir -p "$PROFILE_DIR"
+        "$ADB" -s "$SERIAL" push "$ANGLE_OPENGL_PROFILE" "$PROFILE_DESTINATION" >/dev/null
+        "$ADB" -s "$SERIAL" shell chown "$DATA_OWNER" "$PROFILE_DESTINATION"
+        "$ADB" -s "$SERIAL" shell chmod 660 "$PROFILE_DESTINATION"
+        print "Applied performance DeviceProfiles.ini: $(basename "$ANGLE_OPENGL_PROFILE")"
     fi
 fi
 

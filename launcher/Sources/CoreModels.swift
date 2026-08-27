@@ -88,14 +88,14 @@ struct GameRelease: Codable, Equatable {
     let apks: [GameAPK]
 
     func validate() throws {
-        guard packageName == "com.riotgames.league.teamfighttactics.pbe",
+        guard (packageName == "com.riotgames.league.teamfighttactics" || packageName == "com.riotgames.league.teamfighttactics.pbe"),
               !version.isEmpty,
               baseSHA256.isLowercaseSHA256,
               (1 ... 32).contains(apks.count),
               Set(apks.map(\.name)).count == apks.count,
               apks.first?.name == "base.apk",
               apks.first?.sha256 == baseSHA256 else {
-            throw LauncherError.invalidManifest("Invalid TFT PBE release")
+            throw LauncherError.invalidManifest("Invalid TFT release")
         }
         for apk in apks {
             guard !apk.name.contains("/"), apk.name.hasSuffix(".apk"),

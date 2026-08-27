@@ -31,7 +31,7 @@
     }
   ],
   "game": {
-    "packageName": "com.riotgames.league.teamfighttactics.pbe",
+    "packageName": "com.riotgames.league.teamfighttactics",
     "version": "18.1-5212127",
     "baseSHA256": "2f4996a620623d0b958383bfe58bdec78fb70cca095099ca2474f3d08c62ff18",
     "apks": [

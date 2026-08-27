@@ -33,7 +33,7 @@ struct BridgeRelativePoint: Equatable {
 
 enum BridgeHotkeyTarget {
     static let shop = BridgeRelativePoint(x: 0.96, y: 0.93)
-    static let reroll = BridgeRelativePoint(x: 0.955, y: 0.79)
+    static let reroll = BridgeRelativePoint(x: 0.95, y: 0.72)
     static let buyXP = BridgeRelativePoint(x: 0.032, y: 0.925)
     static let traits = BridgeRelativePoint(x: 0.029, y: 0.04)
     static let items = BridgeRelativePoint(x: 0.059, y: 0.04)
@@ -64,6 +64,23 @@ enum BridgeKeyboardBinding {
     }
 }
 
+enum BridgeMouseButtonBinding {
+    static let reroll: Int64 = 3
+    static let buyXP: Int64 = 4
+
+    fileprivate static func action(for buttonNumber: Int64) -> BridgeAction? {
+        switch buttonNumber {
+        case reroll: return .reroll
+        case buyXP: return .buyXP
+        default: return nil
+        }
+    }
+
+    static func isActionMouseButton(_ buttonNumber: Int64) -> Bool {
+        action(for: buttonNumber) != nil
+    }
+}
+
 enum BridgeForegroundActivityState: Equatable {
     case unknown
     case gameplay
@@ -71,7 +88,10 @@ enum BridgeForegroundActivityState: Equatable {
 }
 
 enum BridgeAndroidActivityClassifier {
-    private static let gameplayActivity = "com.epicgames.unreal.GameActivity"
+    private static let gameplayActivities: Set<String> = [
+        "com.epicgames.unreal.GameActivity",
+        "com.epicgames.unreal.SplashActivity"
+    ]
 
     static func classify(dumpsysOutput: String) -> BridgeForegroundActivityState {
         guard let line = dumpsysOutput.split(separator: "\n").first(where: {
@@ -87,7 +107,7 @@ enum BridgeAndroidActivityClassifier {
             guard let slash = token.firstIndex(of: "/") else { continue }
             let activity = String(token[token.index(after: slash)...])
             guard !activity.isEmpty else { return .unknown }
-            return activity == gameplayActivity ? .gameplay : .nonGameplay
+            return gameplayActivities.contains(activity) ? .gameplay : .nonGameplay
         }
         return .unknown
     }
@@ -402,6 +422,23 @@ private final class BridgeEventTapSession {
         switch type {
         case .rightMouseDown, .rightMouseUp, .rightMouseDragged:
             return nil
+        case .otherMouseDown:
+            let buttonNumber = event.getIntegerValueField(.mouseEventButtonNumber)
+            if let action = BridgeMouseButtonBinding.action(for: buttonNumber),
+               activityMonitor.currentState != .nonGameplay {
+                dispatcher.send(action)
+                return nil
+            }
+            if BridgeMouseButtonBinding.isActionMouseButton(buttonNumber) {
+                return nil
+            }
+            return Unmanaged.passUnretained(event)
+        case .otherMouseUp, .otherMouseDragged:
+            let buttonNumber = event.getIntegerValueField(.mouseEventButtonNumber)
+            if BridgeMouseButtonBinding.isActionMouseButton(buttonNumber) {
+                return nil
+            }
+            return Unmanaged.passUnretained(event)
         case .keyDown, .keyUp:
             guard let cocoaEvent = NSEvent(cgEvent: event) else {
                 return Unmanaged.passUnretained(event)
@@ -460,7 +497,8 @@ private final class BridgeEventTapSession {
         guard !isStopped else { return false }
         let types: [CGEventType] = [
             .keyDown, .keyUp,
-            .rightMouseDown, .rightMouseUp, .rightMouseDragged
+            .rightMouseDown, .rightMouseUp, .rightMouseDragged,
+            .otherMouseDown, .otherMouseUp, .otherMouseDragged
         ]
         let mask = types.reduce(CGEventMask(0)) { $0 | (CGEventMask(1) << $1.rawValue) }
         guard let tap = CGEvent.tapCreate(

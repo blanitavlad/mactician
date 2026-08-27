@@ -99,7 +99,7 @@ private struct Configuration {
             diagnosticsEnabled: diagnosticsValue == "1",
             diagnosticsLog: values["--diagnostics-log"] ?? "",
             shopPoint: RelativePoint(values["--shop-point"] ?? "0.96,0.93", option: "--shop-point"),
-            rerollPoint: RelativePoint(values["--reroll-point"] ?? "0.955,0.79", option: "--reroll-point"),
+            rerollPoint: RelativePoint(values["--reroll-point"] ?? "0.95,0.72", option: "--reroll-point"),
             xpPoint: RelativePoint(values["--xp-point"] ?? "0.032,0.925", option: "--xp-point"),
             traitsPoint: RelativePoint(values["--traits-point"] ?? "0.029,0.04", option: "--traits-point"),
             itemsPoint: RelativePoint(values["--items-point"] ?? "0.059,0.04", option: "--items-point"),
@@ -140,6 +140,23 @@ private enum KeyboardBinding {
         default:
             return nil
         }
+    }
+}
+
+private enum MouseButtonBinding {
+    static let reroll: Int64 = 3
+    static let buyXP: Int64 = 4
+
+    static func action(for buttonNumber: Int64) -> Action? {
+        switch buttonNumber {
+        case reroll: return .reroll
+        case buyXP: return .buyXP
+        default: return nil
+        }
+    }
+
+    static func isActionMouseButton(_ buttonNumber: Int64) -> Bool {
+        action(for: buttonNumber) != nil
     }
 }
 
@@ -556,6 +573,22 @@ private final class InputBridge {
         switch type {
         case .rightMouseDown, .rightMouseUp, .rightMouseDragged:
             return nil
+        case .otherMouseDown:
+            let buttonNumber = event.getIntegerValueField(.mouseEventButtonNumber)
+            if let action = MouseButtonBinding.action(for: buttonNumber) {
+                dispatcher.send(action)
+                return nil
+            }
+            if MouseButtonBinding.isActionMouseButton(buttonNumber) {
+                return nil
+            }
+            return Unmanaged.passUnretained(event)
+        case .otherMouseUp, .otherMouseDragged:
+            let buttonNumber = event.getIntegerValueField(.mouseEventButtonNumber)
+            if MouseButtonBinding.isActionMouseButton(buttonNumber) {
+                return nil
+            }
+            return Unmanaged.passUnretained(event)
         case .keyDown, .keyUp:
             guard let cocoaEvent = NSEvent(cgEvent: event) else {
                 return Unmanaged.passUnretained(event)
@@ -598,7 +631,8 @@ private final class InputBridge {
     private func installEventTap() -> Bool {
         var eventTypes: [CGEventType] = [
             .keyDown, .keyUp,
-            .rightMouseDown, .rightMouseUp, .rightMouseDragged
+            .rightMouseDown, .rightMouseUp, .rightMouseDragged,
+            .otherMouseDown, .otherMouseUp, .otherMouseDragged
         ]
         if configuration.diagnosticsEnabled {
             eventTypes += [.leftMouseDown, .leftMouseUp, .leftMouseDragged]
@@ -664,9 +698,11 @@ private func runSelfTest() throws {
           KeyboardBinding.action(for: 3) == .buyXP,
           KeyboardBinding.action(for: 9) == .togglePlayersAndDamage,
           KeyboardBinding.action(for: 48) == .toggleItemsAndTraits,
+          MouseButtonBinding.action(for: 3) == .reroll,
+          MouseButtonBinding.action(for: 4) == .buyXP,
           configuration.diagnosticsEnabled,
           configuration.shopPoint.pixels(width: 2560, height: 1440) == (2458, 1339),
-          configuration.rerollPoint.pixels(width: 2560, height: 1440) == (2445, 1138),
+          configuration.rerollPoint.pixels(width: 2560, height: 1440) == (2432, 1037),
           configuration.xpPoint.pixels(width: 2560, height: 1440) == (82, 1332),
           configuration.traitsPoint.pixels(width: 2560, height: 1440) == (74, 58),
           configuration.itemsPoint.pixels(width: 2560, height: 1440) == (151, 58),

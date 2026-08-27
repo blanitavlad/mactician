@@ -43,6 +43,8 @@ emit '{"event":"booting","message":"Starting Android…"}'
 "$TFT_RUNTIME_PROJECT/scripts/run-asg-experiment.command" >>"$TFT_LAUNCH_LOG" 2>&1 &
 child_pid=$!
 
+readonly TFT_GAME_PACKAGE="${TFT_PACKAGE_NAME:-${TFT_PACKAGE:-com.riotgames.league.teamfighttactics}}"
+
 typeset emulator_pid=""
 typeset emitted_pid=0
 typeset emitted_ready=0
@@ -63,23 +65,28 @@ while kill -0 "$child_pid" >/dev/null 2>&1; do
             && "$TFT_ADB" -s "$TFT_SERIAL" get-state >/dev/null 2>&1 \
             && [[ "$("$TFT_ADB" -s "$TFT_SERIAL" shell getprop sys.boot_completed 2>/dev/null | tr -d '\r')" == "1" ]]; then
         "$TFT_ADB" -s "$TFT_SERIAL" shell cmd locale set-app-locales \
-            com.riotgames.league.teamfighttactics.pbe "$TFT_GAME_LANGUAGE" \
+            "$TFT_GAME_PACKAGE" "$TFT_GAME_LANGUAGE" \
             >>"$TFT_LAUNCH_LOG" 2>&1 || true
         locale_applied=1
     fi
+    typeset current_game_pid
+    current_game_pid="$("$TFT_ADB" -s "$TFT_SERIAL" shell pidof "$TFT_GAME_PACKAGE" 2>/dev/null | tr -d '\r')"
+    if [[ -z "$current_game_pid" && "$TFT_GAME_PACKAGE" != "com.riotgames.league.teamfighttactics.pbe" ]]; then
+        current_game_pid="$("$TFT_ADB" -s "$TFT_SERIAL" shell pidof com.riotgames.league.teamfighttactics.pbe 2>/dev/null | tr -d '\r')"
+    fi
     if (( emitted_ready == 0 )) \
             && "$TFT_ADB" -s "$TFT_SERIAL" get-state >/dev/null 2>&1 \
-            && [[ -n "$("$TFT_ADB" -s "$TFT_SERIAL" shell pidof com.riotgames.league.teamfighttactics.pbe 2>/dev/null | tr -d '\r')" ]]; then
-        emit "{\"event\":\"ready\",\"message\":\"TFT PBE is open\",\"serial\":\"$TFT_SERIAL\"}"
+            && [[ -n "$current_game_pid" ]]; then
+        emit "{\"event\":\"ready\",\"message\":\"TFT is open\",\"serial\":\"$TFT_SERIAL\"}"
         emitted_ready=1
     fi
     if (( emitted_ready == 1 )); then
-        if [[ -n "$("$TFT_ADB" -s "$TFT_SERIAL" shell pidof com.riotgames.league.teamfighttactics.pbe 2>/dev/null | tr -d '\r')" ]]; then
+        if [[ -n "$current_game_pid" ]]; then
             missing_game_checks=0
         else
             (( missing_game_checks += 1 ))
             if (( missing_game_checks >= 3 )); then
-                emit "{\"event\":\"game_stopped\",\"message\":\"TFT PBE closed\",\"serial\":\"$TFT_SERIAL\"}"
+                emit "{\"event\":\"game_stopped\",\"message\":\"TFT closed\",\"serial\":\"$TFT_SERIAL\"}"
                 break
             fi
         fi

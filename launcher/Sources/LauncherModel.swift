@@ -569,8 +569,8 @@ final class LauncherModel: ObservableObject {
         case .ready:
             mode = .playing
             gameSessionTracker.start()
-            status = "TFT PBE is open"
-            detail = "Space — shop  •  D — reroll  •  F — XP  •  Tab — items/traits  •  V — players/damage  •  Control + Fn + F — fill window."
+            status = "TFT is open"
+            detail = "Space — shop  •  D / Mouse 4 — reroll  •  F / Mouse 5 — XP  •  Tab — items/traits  •  V — players/damage  •  Control + Fn + F — fill window."
             loginAnimationRepair.start(adb: paths.adb, log: paths.launcherLog)
             if let emulatorPID {
                 let profile = launchProfile ?? selectedProfile

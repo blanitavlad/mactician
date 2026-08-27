@@ -115,9 +115,9 @@ enum LauncherTests {
             "shop hotkey touch target"
         )
         try expect(
-            BridgeHotkeyTarget.reroll == BridgeRelativePoint(x: 0.955, y: 0.79)
+            BridgeHotkeyTarget.reroll == BridgeRelativePoint(x: 0.95, y: 0.72)
                 && BridgeHotkeyTarget.reroll.pixels(width: 3840, height: 2160)
-                == (3667, 1706),
+                == (3648, 1555),
             "reroll hotkey touch target"
         )
         try expect(
@@ -507,6 +507,30 @@ enum LauncherTests {
                 ) == .passThrough,
             "input bridge keyboard event policy"
         )
+        try expect(
+            BridgeMouseButtonBinding.reroll == 3
+                && BridgeMouseButtonBinding.buyXP == 4
+                && BridgeMouseButtonBinding.isActionMouseButton(3)
+                && BridgeMouseButtonBinding.isActionMouseButton(4)
+                && !BridgeMouseButtonBinding.isActionMouseButton(1)
+                && !BridgeMouseButtonBinding.isActionMouseButton(2),
+            "input bridge mouse side button bindings"
+        )
+        let liveGameRelease = GameRelease(
+            packageName: "com.riotgames.league.teamfighttactics",
+            version: "18.1-live",
+            versionCode: 8_210_000,
+            baseSHA256: String(repeating: "c", count: 64),
+            apks: [
+                GameAPK(
+                    name: "base.apk",
+                    size: 100,
+                    sha256: String(repeating: "c", count: 64),
+                    url: nil
+                )
+            ]
+        )
+        try liveGameRelease.validate()
         var bridgeSessionGeneration = BridgeSessionGeneration()
         let stoppedGeneration = bridgeSessionGeneration.advance()
         let activeGeneration = bridgeSessionGeneration.advance()
@@ -1050,7 +1074,8 @@ enum LauncherTests {
             try expect(!descriptor.isEmpty, "\(localization) Mactician descriptor")
             if localization == "en" {
                 try expect(
-                    descriptor == "TFT PBE launcher for Apple Silicon",
+                    descriptor == "TFT launcher for Apple Silicon"
+                        || descriptor == "TFT PBE launcher for Apple Silicon",
                     "English Mactician descriptor"
                 )
             }

@@ -37,11 +37,6 @@ readonly EMULATOR_APP="$RUNTIME_TEMPLATE/Mactician Game Host.app"
 readonly EMULATOR_APP_CONTENTS="$EMULATOR_APP/Contents"
 readonly APK_DIR="${TFT_GAME_APK_DIR:-}"
 
-if [[ -z "$APK_DIR" ]]; then
-    print -u2 "TFT_GAME_APK_DIR must point to the directory containing the four pinned, unmodified APK splits."
-    exit 1
-fi
-
 typeset -A EXPECTED_APK_HASHES
 EXPECTED_APK_HASHES=(
     base.apk 2f4996a620623d0b958383bfe58bdec78fb70cca095099ca2474f3d08c62ff18
@@ -50,18 +45,22 @@ EXPECTED_APK_HASHES=(
     split_config.hdpi.apk f3b653ba01a8d352f6a25ad6ecbae8892b13aa44daad6b74aebdb5a5be05d756
 )
 
-for apk expected_hash in ${(kv)EXPECTED_APK_HASHES}; do
-    apk_path="$APK_DIR/$apk"
-    if [[ ! -f "$apk_path" ]]; then
-        print -u2 "Private build input not found: $apk_path"
-        exit 1
-    fi
-    actual_hash="$(shasum -a 256 "$apk_path" | awk '{print $1}')"
-    if [[ "$actual_hash" != "$expected_hash" ]]; then
-        print -u2 "SHA-256 for $apk does not match the TFT PBE 18.1 manifest."
-        exit 1
-    fi
-done
+if [[ -n "$APK_DIR" ]]; then
+    for apk expected_hash in ${(kv)EXPECTED_APK_HASHES}; do
+        apk_path="$APK_DIR/$apk"
+        if [[ ! -f "$apk_path" ]]; then
+            print -u2 "Build input not found: $apk_path"
+            exit 1
+        fi
+        actual_hash="$(shasum -a 256 "$apk_path" | awk '{print $1}')"
+        if [[ "$actual_hash" != "$expected_hash" ]]; then
+            print -u2 "SHA-256 for $apk does not match the manifest."
+            exit 1
+        fi
+    done
+else
+    print "TFT_GAME_APK_DIR is not set. Building Mactician without bundled APKs."
+fi
 
 copy_plain_file() {
     local source_path="$1"
@@ -132,9 +131,11 @@ xcrun clang \
     "$LAUNCHER_DIR/EmulatorHost/main.c" \
     -o "$EMULATOR_APP_CONTENTS/MacOS/MacticianGameHost"
 
-for apk in ${(k)EXPECTED_APK_HASHES}; do
-    copy_plain_file "$APK_DIR/$apk" "$GAME_RESOURCES/$apk"
-done
+if [[ -n "$APK_DIR" ]]; then
+    for apk in ${(k)EXPECTED_APK_HASHES}; do
+        copy_plain_file "$APK_DIR/$apk" "$GAME_RESOURCES/$apk"
+    done
+fi
 
 copy_plain_file "$PROJECT_DIR/run-tft-root-affinity.command" "$RUNTIME_TEMPLATE/run-tft-root-affinity.command"
 copy_plain_file "$PROJECT_DIR/run-tft-angle-opengl.command" "$RUNTIME_TEMPLATE/run-tft-angle-opengl.command"

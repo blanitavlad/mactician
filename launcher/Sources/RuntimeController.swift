@@ -96,6 +96,8 @@ final class RuntimeController {
             "TFT_DISPLAY_SIZE": profile.displaySize,
             "TFT_DISPLAY_DENSITY": "\(profile.density)",
             "TFT_GAME_LANGUAGE": language.id,
+            "TFT_PACKAGE_NAME": gameRelease.packageName,
+            "TFT_PACKAGE": gameRelease.packageName,
             "TFT_CPU_CORES": "\(cpuCores)",
             "TFT_MEMORY_MB": "\(memoryMB)",
             "TFT_UI_SCALE": uiScale,

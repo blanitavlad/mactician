@@ -9,9 +9,11 @@ import Foundation
 /// those two presentation animations. It never focuses a field, opens the
 /// keyboard, or reads/writes form values.
 final class RiotLoginAnimationRepairService {
-    private static let package = "com.riotgames.league.teamfighttactics.pbe"
+    private static let packages = [
+        "com.riotgames.league.teamfighttactics",
+        "com.riotgames.league.teamfighttactics.pbe"
+    ]
     private static let loginActivity = "com.riotgames.platformui.mobilefre.MobileFREWebViewActivity"
-    private static let loginComponent = "\(package)/\(loginActivity)"
     private static let adbServerPort = "5038"
 
     private let queue = DispatchQueue(label: "dev.sergeinaumov.mactician.riot-login-animation-repair")
@@ -59,19 +61,18 @@ final class RiotLoginAnimationRepairService {
                         to: log
                     )
                 } catch {
-                    // The activity becomes top-resumed before Chromium exposes
-                    // its page and DevTools socket. Retry quietly during that
-                    // normal startup window, but leave a bounded diagnostic.
-                    if Date().timeIntervalSince(lastFailureLog) >= 10 {
+                    repairedPID = nil
+                    let now = Date()
+                    if now.timeIntervalSince(lastFailureLog) >= 5 {
+                        lastFailureLog = now
                         SystemServices.appendLog(
-                            "Riot login WebView repair is waiting for Chromium: \(error.localizedDescription)",
+                            "Riot login WebView animation repair failed: \(error.localizedDescription)",
                             to: log
                         )
-                        lastFailureLog = Date()
                     }
                 }
             }
-            Thread.sleep(forTimeInterval: 0.4)
+            Thread.sleep(forTimeInterval: 0.5)
         }
     }
 
@@ -81,24 +82,28 @@ final class RiotLoginAnimationRepairService {
     }
 
     private func loginIsTopActivity(adb: URL, serial: String) -> Bool {
-        guard let activities = try? runADB(
+        guard let output = try? runADB(
             adb,
             serial: serial,
             arguments: ["shell", "dumpsys", "activity", "activities"]
         ) else { return false }
-        guard let topLine = activities.split(separator: "\n").first(where: {
+        guard let topLine = output.split(separator: "\n").first(where: {
             $0.contains("topResumedActivity=ActivityRecord")
         }) else { return false }
-        return topLine.contains(Self.loginComponent)
+        return Self.packages.contains { topLine.contains("\($0)/\(Self.loginActivity)") }
     }
 
     private func applicationPID(adb: URL, serial: String) -> Int? {
-        guard let output = try? runADB(
-            adb,
-            serial: serial,
-            arguments: ["shell", "pidof", Self.package]
-        ) else { return nil }
-        return output.split(whereSeparator: { $0.isWhitespace }).compactMap { Int($0) }.first
+        for package in Self.packages {
+            if let output = try? runADB(
+                adb,
+                serial: serial,
+                arguments: ["shell", "pidof", package]
+            ), let pid = output.split(whereSeparator: { $0.isWhitespace }).compactMap({ Int($0) }).first {
+                return pid
+            }
+        }
+        return nil
     }
 
     private func repair(adb: URL, serial: String, pid: Int) throws -> RepairResult {

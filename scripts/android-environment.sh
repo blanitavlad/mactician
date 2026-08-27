@@ -9,6 +9,7 @@ tft_resolve_android_sdk_root() {
 
     for candidate in \
         "$explicit_root" \
+        "$HOME/Library/Application Support/Mactician/sdk" \
         "${ANDROID_SDK_ROOT:-}" \
         "${ANDROID_HOME:-}" \
         "$HOME/Library/Android/sdk"; do
@@ -86,5 +87,17 @@ tft_resolve_emulator() {
 }
 
 tft_resolve_avd_home() {
-    print -r -- "${TFT_AVD_HOME:-${ANDROID_AVD_HOME:-$HOME/.android/avd}}"
+    if [[ -n "${TFT_AVD_HOME:-}" ]]; then
+        print -r -- "$TFT_AVD_HOME"
+        return 0
+    fi
+    if [[ -n "${ANDROID_AVD_HOME:-}" ]]; then
+        print -r -- "$ANDROID_AVD_HOME"
+        return 0
+    fi
+    if [[ -d "$HOME/Library/Application Support/Mactician/avd" ]]; then
+        print -r -- "$HOME/Library/Application Support/Mactician/avd"
+        return 0
+    fi
+    print -r -- "$HOME/.android/avd"
 }

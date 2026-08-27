@@ -283,7 +283,8 @@ private final class FPSOverlaySession {
 
     private func queryLayer() -> String? {
         guard let output = runADB(["shell", "dumpsys SurfaceFlinger --list"]) else { return nil }
-        return SurfaceFlingerFPS.gameLayer(from: output, package: Self.package)
+        return SurfaceFlingerFPS.gameLayer(from: output, package: "com.riotgames.league.teamfighttactics")
+            ?? SurfaceFlingerFPS.gameLayer(from: output, package: "com.riotgames.league.teamfighttactics.pbe")
     }
 
     private func runADB(_ arguments: [String]) -> String? {
