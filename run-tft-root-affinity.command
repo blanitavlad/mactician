@@ -36,7 +36,7 @@ readonly GL_DRAW_FLUSH_INTERVAL="${TFT_GL_DRAW_FLUSH_INTERVAL:-}"
 readonly HWUI_RENDERER="${TFT_HWUI_RENDERER:-skiagl}"
 readonly GRAPHICS_PROFILE="${TFT_GRAPHICS_PROFILE:-osft}"
 readonly DISPLAY_SIZE="${TFT_DISPLAY_SIZE:-1920x1080}"
-readonly DISPLAY_DENSITY="${TFT_DISPLAY_DENSITY:-280}"
+readonly DISPLAY_DENSITY="${TFT_DISPLAY_DENSITY:-240}"
 readonly UI_SCALE="${TFT_UI_SCALE:-1.0}"
 readonly CPU_CORES="${TFT_CPU_CORES:-8}"
 readonly MEMORY_MB="${TFT_MEMORY_MB:-8192}"
@@ -544,7 +544,6 @@ EMULATOR_ARGS=(
     "${EXTRA_EMULATOR_FLAGS[@]}"
     -append-userspace-opt "androidboot.mactician.graphics_profile=$GRAPHICS_PROFILE"
     -skin "$DISPLAY_SIZE"
-    -fixed-scale
     -vsync-rate 60
     -dns-server 1.1.1.1,8.8.8.8
     -cores "$CPU_CORES"
@@ -832,13 +831,11 @@ if [[ "$INPUT_BRIDGE_ENABLED" == "1" ]]; then
     fi
 fi
 
-if ! "$ADB" -s "$SERIAL" shell pm path "$PACKAGE" | grep -q '^package:'; then
-    typeset -a LIVE_APKS
-    LIVE_APKS=($HOME/Library/Application\ Support/Mactician/game/tft-live/*.apk(N))
-    if (( ${#LIVE_APKS[@]} > 0 )); then
-        print "Installing TFT Live package ($PACKAGE)..."
-        "$ADB" -s "$SERIAL" install-multiple "${LIVE_APKS[@]}" >/dev/null 2>&1 || true
-    fi
+typeset -a LIVE_APKS
+LIVE_APKS=($HOME/Library/Application\ Support/Mactician/game/tft-live/*.apk(N))
+if (( ${#LIVE_APKS[@]} > 0 )); then
+    print "Ensuring TFT Live package ($PACKAGE) is up to date..."
+    "$ADB" -s "$SERIAL" install-multiple -r "${LIVE_APKS[@]}" >/dev/null 2>&1 || true
 fi
 
 if ! "$ADB" -s "$SERIAL" shell pm path "$PACKAGE" | grep -q '^package:'; then
